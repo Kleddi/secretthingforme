@@ -12,8 +12,11 @@
     - songs[]            (title, artist, and optionally a real
                            audio "src" url/mp3 path — leave src
                            empty to keep it as a pretty visualizer)
-    - letterBody         (your message, plain text, keep \n for
-                           new paragraphs)
+    - letters[]          (one or more envelopes/messages — each
+                           entry is plain text, keep \n\n for new
+                           paragraphs. one entry = one envelope,
+                           no nav buttons shown. two or more =
+                           previous/next envelope buttons appear)
     - photoUrls          (paths/URLs to four photos of you two)
     - bouquetUrl         (path/URL to a real bouquet photo —
                            leave empty to keep the illustration)
@@ -554,7 +557,25 @@
     min-height:100svh; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:var(--page-space) var(--page-gutter);
   }
-  .envelope-stage{ perspective:1400px; width:min(480px, 90vw); margin:0 auto; padding:18px 0 30px; }
+  .envelope-carousel{
+    --drag-offset:0px; position:relative; width:min(480px, 90vw); height:340px; margin:0 auto; padding:18px 0 30px;
+    touch-action:none; user-select:none; cursor:grab;
+  }
+  .envelope-carousel.dragging{ cursor:grabbing; }
+  .envelope-carousel.one-only{ cursor:default; touch-action:auto; }
+  .envelope-carousel:focus-visible{ outline:2px solid var(--accent-light); outline-offset:8px; border-radius:18px; }
+  .envelope-drag, .envelope-orbit{ position:absolute; inset:0; }
+  .envelope-drag{ transform:translateX(var(--drag-offset)); transition:transform .25s ease-out; }
+  .envelope-carousel.dragging .envelope-drag{ transition:none; }
+  .envelope-card{
+    position:absolute; top:50%; left:50%; width:100%; margin:0; perspective:1400px;
+    opacity:0; pointer-events:none; will-change:transform, opacity;
+    transition:transform .65s cubic-bezier(.2,.8,.2,1), opacity .4s ease;
+  }
+  .envelope-card.is-front{ z-index:4; opacity:1; transform:translate(-50%,-50%) rotate(-1deg); pointer-events:auto; }
+  .envelope-card.is-right{ z-index:3; opacity:1; transform:translate(-8%,-46%) rotate(6deg) scale(.88); }
+  .envelope-card.is-left{ z-index:2; opacity:1; transform:translate(-92%,-46%) rotate(-6deg) scale(.88); }
+  .envelope-card.is-back{ z-index:1; opacity:1; transform:translate(-50%,-64%) rotate(1deg) scale(.78); }
   .envelope{ position:relative; width:100%; height:300px; user-select:none; }
   .env-back{
     position:absolute; inset:0; border-radius:10px;
@@ -597,8 +618,8 @@
     transform:translateY(-13%); opacity:1; pointer-events:auto; z-index:5;
     transition:transform .8s cubic-bezier(.2,.8,.2,1) .1s, opacity .2s ease .16s;
   }
-  #page-letter .envelope-stage{ transition:padding .55s ease; }
-  #page-letter:has(.envelope.open) .envelope-stage{ padding:150px 0 220px; }
+  #page-letter .envelope-carousel{ transition:padding .55s ease; }
+  #page-letter:has(.envelope.open) .envelope-carousel{ padding:150px 0 220px; }
   .envelope.open .letter-paper{
     left:-10%; right:-10%; top:50%; bottom:auto; height:min(560px, 75svh);
     transform:translateY(-50%); padding:46px 38px 34px;
@@ -617,8 +638,8 @@
   .hint{ text-align:center; margin-top:18px; color: var(--text-dim); font-size:.85rem; }
   @media (max-width:600px){
     #page-letter .wrap{ padding:var(--page-space) var(--page-gutter); }
-    .envelope-stage{ padding-top:12px; }
-    #page-letter:has(.envelope.open) .envelope-stage{ padding:115px 0 175px; }
+    .envelope-carousel{ padding-top:12px; }
+    #page-letter:has(.envelope.open) .envelope-carousel{ padding:115px 0 175px; }
     .envelope.open .letter-paper{ left:-4%; right:-4%; height:min(500px, 70svh); padding:42px 27px 28px; }
   }
 
@@ -677,6 +698,55 @@
   @media (max-width:600px){
     .photo-carousel{ height:330px; }
     .photo-card{ width:185px; }
+  }
+  .envelope-controls{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px; }
+  .env-nav{
+    display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:10px 15px; border:1px solid var(--line); border-radius:999px;
+    background:rgba(15,31,48,.86); color:var(--text-soft); cursor:pointer; font:inherit; font-size:.85rem;
+    min-width:160px; flex:0 0 auto;
+  }
+  .env-nav:hover{ border-color:var(--accent-light); background:rgba(0,127,255,.15); }
+  .env-nav:focus-visible{ outline:2px solid var(--accent-light); outline-offset:3px; }
+  .env-nav svg{ width:16px; height:16px; flex-shrink:0; }
+  .env-nav[hidden]{ display:none; }
+  .envelope-position{ color:var(--text-dim); font-size:.78rem; min-width:110px; text-align:center; }
+  @media (max-width:480px){
+    .env-nav{ min-width:0; padding:9px 12px; font-size:.8rem; }
+  }
+
+  /* ---------- locked sections: visible as "something is here", but blurred and unreadable ---------- */
+  #story-page,
+  #reasons-page,
+  #page-us .wrap,
+  #page-bouquet .wrap,
+  #daily-intro-page,
+  #daily-page{
+    filter: blur(14px) saturate(0.6);
+    user-select: none;
+    pointer-events: none;
+    -webkit-touch-callout: none;
+  }
+  /* a small badge so it reads as intentionally locked, not broken */
+  .page[data-page="story"] .wrap::after,
+  .page[data-page="reasons"] .wrap::after,
+  #page-us::after,
+  #page-bouquet::after,
+  .page[data-page="daily-intro"] .wrap::after,
+  .page[data-page="daily"] .wrap::after{
+    content: '🔒 locked';
+    position: fixed;
+    top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 30;
+    filter: none;
+    color: var(--text-soft);
+    background: rgba(6,13,22,.75);
+    border: 1px solid rgba(102,179,255,.4);
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-family: 'Caveat', cursive;
+    font-size: 1.2rem;
+    letter-spacing: .02em;
+    pointer-events: none;
   }
 </style>
 </head>
@@ -877,16 +947,17 @@
   <div class="wrap">
     <span class="kicker" style="display:block;text-align:center;">for you</span>
     <h2 class="heading" style="text-align:center;">a message I'll always mean</h2>
-    <div class="envelope-stage">
-      <div class="envelope" id="envelope">
-        <div class="letter-paper" id="letterPaper" tabindex="0" aria-label="Letter content. Scroll to read more."><button class="letter-close" id="letterClose" type="button" aria-label="Close letter">×</button></div>
-        <div class="env-flap" id="envFlap"></div>
-        <div class="env-back" id="envBack"></div>
-        <div class="seal" id="envSeal">
-          <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-8.8C.7 8.6 2 5 5.4 5 7.6 5 9.5 6.3 12 9c2.5-2.7 4.4-4 6.6-4C22 5 23.3 8.6 21.5 12.2 19 16.4 12 21 12 21z"/></svg>
-        </div>
+    <div class="envelope-carousel" id="envelopeCarousel" tabindex="0" aria-label="One or more envelopes. Drag to browse, or use the next envelope button.">
+      <div class="envelope-drag" id="envelopeDrag">
+        <div class="envelope-orbit" id="envelopeOrbit"></div>
       </div>
-      <p class="hint" id="envHint">tap the envelope to open it</p>
+    </div>
+    <p class="hint" id="envHint">tap the envelope to open it</p>
+    <div class="envelope-controls" id="envelopeControls">
+      <button class="env-nav" id="prevEnvBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Previous envelope</button>
+      <span class="envelope-position" id="envelopePosition" aria-live="polite"></span>
+      <button class="env-nav" id="nextEnvBtn" type="button">Next envelope <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <span class="envelope-position" id="envelopePosition" aria-live="polite"></span>
     </div>
   </div>
 </section>
@@ -1061,6 +1132,16 @@ const CONFIG = {
     "I love how you always wanna tambay with me even though nahihirapan kana with all the \"Kati\" dahil sa lamok.",
     "I love hearing your voice, hearing you everytime makes me calm.",
     "I love seeing seeing you smile, seeing you joyful will always be my goal.",
+    "I love how you always come behind me when things get eerie.",
+    "I love how you hide behind me when you see or hear dogs.",
+    "I JUST LOVE HOW YOU put your hands in my elbows",
+    "I love how you still consider me, even when your parents doubt you",
+    "I love how you still try to choose me, even with the things I\'ve done to you.",
+    "I love how you still wanna continue, even when things get bad (kati) (dumi).",
+    "I just love seeing you still care, I still see na you still view the website, it makes me still wanna continue.",
+    "I love hanging out with you, I find myself the calmest I\'ve ever been everytime I\'m with you.",
+    "I love ragebaiting you, I just hope that atleast it makes you happy or smile.",
+    "",
     "I will always love seeing you, that\'ll be my definition of \"My day is made.\"",
 
   ],
@@ -1107,15 +1188,15 @@ const CONFIG = {
     "August 18, 2026 - I see that your brother found his new \"BAYAW\" I don\'t know Glad it hit me so hard, that I couldn\'t fight myself from talking to you, and so I did. Seeing your energy, I really feel like there\'s something new, it is him? Or maybe because I can no longer hold you like before. I hate it Glad. I really hate it, seeing your brother find someone new for you hits harder, and I couldn\'t take it, so I reached out. I\'m sorry I did, you were doing so great without me, I shouldn\'t had reached out. And I made it all go back. \n\nI don\'t know why I keep on teasing you about this website, maybe because I don\'t want you getting over me or something else, but I\'ll thank you on the little talk we had, I just wished, na meron akong lakas na itanong ulit sayo, to try again. Pero wala na, I can\'t, I don\'t want you to say it to me ulit, It\'ll hurt me more than you think. I\'m so sorry Gladibelle, that we turned out like this because of me, I\'m really sorry that I hurt you, made you think trust on other people isn\'t worth it anymore. But I hoped that you would really decide for us, I had hope that you would wanna try again. I really did, I stayed quiet kasi ayaw ko na talaga na ako nag ulit ang mag tatanong, I hate it. I hope that what you reflected is something you cherish, I really hope you do. For me, I\'ll take it til my grave, I just wish that once you\'re reading this, it\'s all complete and maybe, JUST maybe I am right beside you.", // Day 20
     "August 19, 2026 - Nothing much happened this day, my day really went through so fast that I didn\'t even realized that it was already done. This will probably the calmest day I ever experienced yet, I got so much to do that I had so much fun, I didn\'t stalk you like I used to, I played and played and played, until the day really went through. Although it looks normal for me, I still couldn\'t stop myself from thinking about you though, I still saw all of your new reposts, the reposts you removed, everything. \n\nI actually am keeping track of your followers, and I actually saw you have new mutuals! If you really know me, you know what I\'ll be thinking about them, your new mutuals, after what I saw in rei\'s story, I sure hope that no hatred grows in me when im tryna look for something, cause you might trigger something in me that I don\'t want. I hope that you are being true to your word, cause I\'ll think about it, really really deep.", // Day 21
     "August 20, 2026 - Saw you changed your profile in your discord! I can\'t ask why, but I wanna know. It actually made me think that you are over me, and it really hit me in the chest. I got me thinking about it Glad, look, even your smallest actions gives the thoughts of something big, aren\'t I so inlove? I hate to admit it, I fell in love with you when you were gone, I don\'t want to admit it, I hate it that I\'m feeling this way when the person isn\'t even in my hands anymore. \n\nThis day we will be drinking ulit, I hope this time nothing happens, kasi I don\'t wanna ruin your peace ulit, you\'re doing great without me, and I wanna keep it that way, I hope you keep it that way, I hope you get over from all the things we do parin! And I am praying that you always stay safe, from everyone, everything, every bad things in this world. \n\n", // Day 22
-    "", // Day 23
-    "", // Day 24
-    "", // Day 25
-    "", // Day 26
-    "", // Day 27
-    "", // Day 28
-    "", // Day 29
-    "", // Day 30
-    "", // Day 31
+    "August 21, 2026 - Hey, I\'m really sorry about what I said, I really got into your head that day, and I\'m really sorry. I know that no amount of words can really make you feel better, and I think na no longer have the right to do things, just to make you feel a little bit greater than what you\'re feeling. But here I am writing this down, na I am really sorry, I don\'t know what to do na Gladibelle, everytime we have interactions, it may be small or it may me big, it always ends up you being hurt, I hate myself, I always seem to do that to you, even when my true intentions is to truly love you. \n\nThis is the day I showed you this unfinished website, well cause I had to, I didn\'t wanna risk na hindi ko mabigay to cause of what I did. And so I gave it to you even if it was unfinished, I hope it made you somehow important, I hope that I made you somewhat special, I hope that it made you hating me less. I really am sorry, I have no more words to say Glad, I hurt you so much that I think I shouldn\'t be even in your life na, I don\'t know why you\'re still keeping me. I wanna know, but I wouldn\'t ask you.", // Day 23
+    "August 22, 2026 - We talked all midnight Glad, you even asked me to hangout, and I was actually really into it, I couldn\'t wait, I wanted to see, but I knew we both didn\'t sleep and you have classes til 4:00pm, so I knew na hindi matutuloy, I also knew na tutulugan mo lang talaga literal, kaya I didn\'t remind you, even though I had something to give you. Although it was cancelled, I was still grateful na you rested well, and you still asked me out to hangout, Thank you Gladibelle. \n\nI was actually hurt that you left the server, you didn\'t even said goodbye, or something, but for others you usually do it, yes I hurt you, and I\'m sorry, but maybe you didn\'t have to leave the server I made just for you, it was suppose to be for us, it was suppose to be for you, it was suppose to be us til the end in that server, but you left. I\'m sorry for what I did, I just wish one last time that you\'re here wanting to watch play the games I play and want to play. \n\nTil this day, I still am missing you, the conclusion we concluded to is something you didn\'t want, you just agreed, I can tell Glad, you really aren\'t into relationships, but you said that you\'re hoping that one day you change your mind, I do too Glad, I do too. I just wish one day something inside you changes how you feel about being inlove again, I just wish you want to try again. And if you do, I wish you wanna try again with me, I would take it a thousand times, over and over, til I am no longer here. I still choose you.", // Day 24
+    "August 23, 2026 - I waited all day, na ichat mo ako about the hangout, I waited. I really did, kasi I also wanted to, I was expecting it around 8 pm, not midnight, kasi tumatak sakin yung mga sinabi mo na your parents are doubting you kasi lagi kang wala midnight with me, I started to think about it, I genuinely didn\'t want to go out at midnight dahil dun sa sinabi mo, but I did look forward into our hangout. I hope you had fun, I asked you why you wanted to hangout, cause I thought there was a reason, but you said na you just asked to. For me, I saw that action, as a friend, is this you showing me that you just wanna be friends with me? I don\'t understand, I can\'t accept it. I\'m sorry. \n\nI wished you had fun, I expected something for you say Glad, I really did, I also had things to ask you, if ever you asked me something deep, I just didn\'t. I don\'t wanna ever start to ask you things, cause I don\'t want to end up ruining your day again if I ever started it. I\'m really sorry, you also said na you wanna try again, but something is stopping you, I really wanna know it. It bothers me still na we\'re like this, and it made me think more na you wanted to try na pala ulit, pero something\'s is stopping you. We both wanted to let go, and cut things off na, pero when you knew na I wouldn\'t be okay, you stopped. Why? You thought of me again? You want things to be okay for the both of us? That\'s not possible Glad, I want us to work, you wanna be alone. Cooling off does nothing, it just prolongs the problem. This day, I would probably never chat you again, I would probably stay away na. For you, para you have the peace you want and all, para talaga mag isa ka na. The way you want it.", // Day 25
+    "August 24, 2026 - This day was so ROUGH!!! I couldn\'t stop thinking about what about me is so worth it about keeping me in your tabs, while all I did to you is hurt you so much. I had this feeling all day long, you had every reason to cut me off, every reason to be mad at me. So what\'s really so worth it about me? Your feelings can\'t be the same, what is it that you really see in me. I would really like to know, is it the same as I see in you? \n\nI never told you how much I really wanna know you, I never show it to you, but I always, ALWAYS observe you, I am always curious into what are you really into, who you really are, how you act through different friends, your family, to me, to them. I always wanna know, I wanna know how you think, how you feel and how you act. I am that curious, I just don\'t show you, if you realized I always am the one to ask where you wanna do or go when we went to that Haunted Hospital, I am observing you, I am always lookin at you, cause I am that curious about you. I hope that someday, I will be there asking about you. I miss you Gladibelle, I really do.", // Day 26
+    "August 25, 2026 - A day where all I thought about is you, after the hangout, all the little talk we had after the hangout, I wanted more of you, I wanted more of your presence, it\'s you again that I am yearning for. After that interaction we had, I wanted more of it, I keep on finding it on this specific day, but before this day, before our hangout, before our little talks, I was doing fine, I didn\'t try to find something like this, I was not expecting you before that hangout. But today it seems like I need it, I want it, and I do. I yearned for you to the point na I was imagining on things like, how I am planning on proposing to you, with both of your parents, being involve with my plan. I even imagined how you would react, your face, your body movements, your excitement, everything, I imagined everything, from you crying to you saying \"Yes.\" I even imagined me asking your parents for their blessing, just so I could propose. OMG Gladibelle, writing this down, I just realized how Inlove I am, I can see the foolishness inside me. How could I imagine those when we\'re both like this, you aren\'t into relationships anymore, yet here I am still waiting for you, foolishly waiting for you. \n\nDon\'t be guilty about it though, I chose this path myself, and I still wanna be in it, I genuinely want you Glad, if that\'s still possible, I wanna know you as the person you are, I am, and will willingly accept who you are as a person, all your flaws, all your imperfections, all of your habits, all of your likings, I would learn to love them, and I will love them. OHMYGOSH, writing this down, I just am smiling out of foolishness, I also just did a facepalm to myself, knowing na by the time you\'ve read this, you probably no longer care about me, and have let go of me. But hey if you did read it, atleast you knew how much I really care about having you, and how much I really care about knowing you more.", // Day 27
+    "August 26, 2026 - 910. I want you to be my 01000111 and my only 71. You are, but are you gonna accept my offer? My thoughts tryna make a reality that isn\'t happening, LOL. A day filled on thinking what you\'re thinking about me, I can\'t stop thinking about what you said, \"I wanna try again with you, but something\'s stopping me, and I don\'t know what.\" From that Gladibelle, it made me think whether I should really ask you again, cause I really wanna be with you again, pero deep inside my thoughts, ayaw kong saktan ka ulit, I will do everything in my power tho, to protect you, everything about you, I wanna protect you, again. I was trying to everything to let you do the first move, I was actually trying, I removed everything on the website, I liked so many negative things, just so you chat me, cause ayaw kong mag first chat. I am sorry Gladibelle, I hate asking you ulit, kasi nga as I said before na, ayaw kong pinipilit yung ayaw, kaya I guess i\'ll just be here standing, being the man who can\'t be moved.", // Day 28
+    "August 27, 2026 - The same feeling, just wanting you back, I was actually close to trying to chat you, I think I can\'t take it, I really want you back so much. I actually saw your instants on IG, I lowkey got jealous, no I actually got jealous so bad. I don\'t wanna say what I wanted to do, and thing I thought of, so that\'s just it, I got jealous so bad. \n\nI can\'t think of a clear thought on why I feel these things when I receive stuff like that from you. I actually feel everything at once, I can\'t na Glad, I don\'t wanna feel like this everytime I see something, you do something, everything that you do, literally breaks me when I am not informed, not involved, when I suddenly get a flash from you na you\'re somewhere with someone else that I don\'t know. I am sorry I am like this, I just miss you so much. \n\nWhat if Gladibelle, this day I asked you again? I wonder what will you say, I legit wanna know, should I? Should I do something? Do I note something? I asked myself that, everything cause, something in me really wanna ask you again, but like I said, I am afraid. I am thinking of notes, of songs to note, asking for something, a sign, a \"Go signal\" to do what I am thinking of, but I couldn\'t think of one, I always see your repost, your new stories, your new posts, I always search its meaning, and connect it to me, I search everything Glad, and those meaning, I always say its about me, all about me, everything you post, you repost, your songs in your story.", // Day 29
+    "August 28, 2026 - You know, this day I actually just fought myself from asking you, I distracted myself to the point na pinapagalitan na ako, I never left my room, I bed rotted para lang hindi ko maisip yon. You never left my mind, all day I\'ve been thinking of ways on how, we would be able to chat, or something, just connect ulit. Pero I didn\'t want to be the first one to do so, na ako mag cchat ulit, then asking for something you don\'t even want, kaya ayun, I just distracted myself. \n\nI actually saw your reposts, binalik mo halos lahat, yung dati na niremove mo, I don\'t know what happened or maybe something came up sayo that I wish I knew. Anyway I wanna go to the big thing. You removed friend me in both Discord and Valorant, I don\'t know what particular reason on why you did it, maybe it was because of my likes or something else I did, but I am 90% sure its about my likes, on things like that Glad I just wish you tell me, what really bothers you, I would explain every single one of them, cause on Instagram a lot of people I know follows me, and I like a lot of things if its connected to me, not everything is about you, I also have my own life, if it affected you, I\'m sorry, I hardly like anything about you anymore, its mostly about people around me. If it is about you, then tell me I\'ll explain it sayo on why I liked that. Maybe its something that hurt me, or maybe something I hate about this generation\'s relationship, or maybe something connected to stephen\'s stories about his past kausap, I like them if its about one of them. \n\nIt\'s hard for me to accept na you just removed friend me on both Valorant and Discord, nang walang sabi, when in fact the people you met from me, got them. I was like \"Huh, walang paalam?\" Despite the people you knew before and after me, got them. I was like \"So what am I?\" A nuisance? A nobody? A bystander? Just there? I was thinking of things na how could you do that to someone special to you, maybe I was special, but in a bad way. I knew rin na I was special, kasi galing na sayo eh, someone as special as me you said, pero a simple thing like telling me na you\'re removing me on your friendlist is something you cannot do to me? So am I really that special to you? From what I can see is you don\'t really care anymore, you just want me around kasi ayaw mong nasasaktan ako, when you knew na hindi ako magiging okay if we end things.", // Day 30
+    "August 29, 2026 - ", // Day 31
     "", // Day 32
     "", // Day 33
     "", // Day 34
@@ -1337,7 +1418,8 @@ const CONFIG = {
     { title: "Distant Lover", artist: " Marvin Gaye", duration: "—", src: "top100/Distant Lover.mp3" },
   ],
 
-  letterBody: "Hey Gladibelle,\n\nFirst and foremost, Happy Happy birthday to you! This day is a very special day to you, I hope no one ever messed it up. Its also the same reason I sent this so late, cause I never wanna mess this special day of you. Yes you may say that I\'ll never ruin the day or something like that, just \'HINDI NAMAN KAYA.\' is all I hear right now writing this down. But how can a guy like me not ruin your special day when I broke your heart.  \n\nAnyway, I hope you\'re doing fine Gladibelle, Here I am hoping that life has been more kinder to you, I hope that you found the peace you\'re finding in this world we have. So here I ask you, Kumusta kana? Come talk to me if you have the time, but first, please do take your time in this little website I made for you, everything here is connected to you, that\'s what I hope it is. If not, I tried to. \n\nMay your day continue how you wanted it to be, I hope this at least made you smile, cause I'd build this a hundred times over if it meant one more smile from you. If you\'re reading this, it means you made it this far - through the songs, the little sections, all of it. Good. I wanted you to. \n\nAs I write this letter to you, all I remember is the moments we once had, how I wish I could get back to those wonderful days. If I could repeat an event from my life, I would always choose those moments I had with you, Forever. Well, I\'m not suppose to make this letter this long, but writing this down, I realized that my love for you is truly one thing I didn\'t expect, I don\'t know why but ever since we let each other go, everything I do is all about you. It\'s not your presence, nor the way I always tell what i\'m doing in my days, I can\'t tell how I think about it, I can\'t explain how I see it, but everytime I do something, all I think about is you. That\'s when I realize how I really felt about you, I miss you Gladibelle. \n\nI'm not always great with words out loud, so I figured I'd write them down instead, where I could get them right. Thank you for the small things you probably don't think twice about the way you laugh will always be something special to me, seeing you with teeth out will always be my kind of \"My day is made\", it\'s something you should always do, laugh and live life. The way you make ordinary days feel like they matter. This is just a website. But it's also just me, trying to say: I see you, I chose you, and will keep on choosing you, over and over again. \n\nYours always, Kled.",
+  letters: ["Dear Gladibelle, \n\nI did a lot to you that really hurt you, I can\'t take that back, what I did to you is wrong, and I am sorry. No amount of words can really make you feel okay, the weight that I did to you is something I cannot really take back, I wish I can but the actions I do is what really gave in sayo. From what I can see sayo writing this down now, I see that you are truly starting to let go, and I am here to accept that, I will no longer stop you if you wanna let things go, cut ties or what, cause the reason we really aren\'t doing that, is cause of me rin, you\'re still thinking about me, about how I would be if we ever let things go and cut everything off, despite what you receive from me, the moment we\'re like this all I ever did is hurt you over and over again, I still wish I could go back, where all the things I did sayo, everything that led us to this, I wanna stop all of it, it was never really my intention to hurt you so much in the process of me trying everything to love you and get you back. So, here I am accepting na if you wanna cut ties, let things go once and for all. I wish you knew na it wasn\'t really my full intention to hurt you. \n\nGladibelle, If you\'re reading this, just know that seeing you like that really hurts me, a lot. I don\'t want you seeing like that, specially if its cause of me, I wish we would\'ve talked it out, cause it really hurts me na you don\'t like talking to me anymore, it hurts me a lot na you\'re trying to avoid me at all cost. Please Glad I wanna make things right pa, I still wanna talk things out, I want to atleast make you feel better. Honestly right now I am thinking about whether I am asking you out for atleast just a min or just simply giving you this, I wanna make things clear with you \:\(, I\'m sorry pero I can\'t stand na ganto lang tayo."],
+
 
   photoUrls: [
     "photos/photo-1.jpg", // Photo 1 — e.g. "photos/photo-1.jpg"
@@ -1458,13 +1540,6 @@ document.getElementById('whoText').textContent = CONFIG.whoText;
   });
 })();
 document.getElementById('signature').textContent = `coded late at night, with love — ${CONFIG.yourName}`;
-
-const letterPaper = document.getElementById('letterPaper');
-CONFIG.letterBody.split('\n\n').forEach(p => {
-  const el = document.createElement('p');
-  el.textContent = p;
-  letterPaper.appendChild(el);
-});
 
 (function photoCarousel(){
   const carousel = document.getElementById('photoCarousel');
@@ -1767,21 +1842,132 @@ CONFIG.letterBody.split('\n\n').forEach(p => {
    so clicking or scrolling inside the letter itself never
    accidentally closes it back up)
    ============================================================ */
-(function envelope(){
-  const env = document.getElementById('envelope');
-  const flap = document.getElementById('envFlap');
-  const seal = document.getElementById('envSeal');
-  const back = document.getElementById('envBack');
+(function envelopeCarousel(){
+  const carousel = document.getElementById('envelopeCarousel');
+  const orbit = document.getElementById('envelopeOrbit');
+  const nextButton = document.getElementById('nextEnvBtn');
+  const prevButton = document.getElementById('prevEnvBtn');
+  const position = document.getElementById('envelopePosition');
   const hint = document.getElementById('envHint');
-  const close = document.getElementById('letterClose');
+  const letters = (CONFIG.letters && CONFIG.letters.length) ? CONFIG.letters : [CONFIG.letterBody || ''];
+  const cards = [];
+  let activeEnvelope = 0;
+  let autoRotate;
+  let isOpen = false;
 
-  function setOpen(open){
-    env.classList.toggle('open', open);
-    hint.textContent = open ? 'use the × button to close the letter' : 'tap the envelope to open it';
+  letters.forEach(text => {
+    const card = document.createElement('div');
+    card.className = 'envelope-card';
+    card.innerHTML = `
+      <div class="envelope">
+        <div class="letter-paper" tabindex="0" aria-label="Letter content. Scroll to read more."><button class="letter-close" type="button" aria-label="Close letter">×</button></div>
+        <div class="env-flap"></div>
+        <div class="env-back"></div>
+        <div class="seal">
+          <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-8.8C.7 8.6 2 5 5.4 5 7.6 5 9.5 6.3 12 9c2.5-2.7 4.4-4 6.6-4C22 5 23.3 8.6 21.5 12.2 19 16.4 12 21 12 21z"/></svg>
+        </div>
+      </div>`;
+
+    const letterPaper = card.querySelector('.letter-paper');
+    text.split('\n\n').forEach(p => {
+      const el = document.createElement('p');
+      el.textContent = p;
+      letterPaper.appendChild(el);
+    });
+
+    const env = card.querySelector('.envelope');
+    const flap = card.querySelector('.env-flap');
+    const seal = card.querySelector('.seal');
+    const back = card.querySelector('.env-back');
+    const close = card.querySelector('.letter-close');
+
+    function setOpen(open){
+      env.classList.toggle('open', open);
+      isOpen = open;
+      hint.textContent = open ? 'use the × button to close the letter' : 'tap the envelope to open it';
+      if (open) window.clearInterval(autoRotate); else startAutoRotate();
+    }
+    function toggle(){
+      if (!card.classList.contains('is-front')) return;
+      setOpen(!env.classList.contains('open'));
+    }
+    [flap, seal, back].forEach(el => el.addEventListener('click', toggle));
+    close.addEventListener('click', () => setOpen(false));
+
+    orbit.appendChild(card);
+    cards.push({ card, env, setOpen });
+  });
+
+  function layoutCards(){
+    const positions = ['is-front', 'is-right', 'is-left', 'is-back'];
+    cards.forEach(({ card, env, setOpen }, index) => {
+      const wasFront = card.classList.contains('is-front');
+      card.classList.remove(...positions);
+      card.classList.add(positions[(index - activeEnvelope + cards.length) % cards.length]);
+      if (wasFront && !card.classList.contains('is-front') && env.classList.contains('open')) setOpen(false);
+    });
+    if (cards.length > 1) position.textContent = `Envelope ${activeEnvelope + 1} of ${cards.length}`;
   }
-  function toggle(){ setOpen(!env.classList.contains('open')); }
-  [flap, seal, back].forEach(el => el.addEventListener('click', toggle));
-  close.addEventListener('click', () => setOpen(false));
+  function moveEnvelope(direction){
+    activeEnvelope = (activeEnvelope + direction + cards.length) % cards.length;
+    layoutCards();
+  }
+  function startAutoRotate(){
+    window.clearInterval(autoRotate);
+    if (cards.length < 2) return;
+    autoRotate = window.setInterval(() => moveEnvelope(1), 3200);
+  }
+
+  layoutCards();
+  startAutoRotate();
+
+  if (cards.length < 2) {
+    document.getElementById('envelopeControls').hidden = true;
+    carousel.classList.add('one-only');
+  } else {
+    nextButton.addEventListener('click', () => moveEnvelope(1));
+    prevButton.addEventListener('click', () => moveEnvelope(-1));
+  }
+
+  let dragging = false;
+  let awaitingDrag = false;
+  let startX = 0;
+  let dragDistance = 0;
+  let dragThreshold = 8;
+
+  function endDrag(event){
+    awaitingDrag = false;
+    if (!dragging) { startAutoRotate(); return; } // was a tap/click, not a drag — let it open the envelope
+    dragging = false;
+    carousel.classList.remove('dragging');
+    if (carousel.hasPointerCapture(event.pointerId)) carousel.releasePointerCapture(event.pointerId);
+    carousel.style.setProperty('--drag-offset', '0px');
+    if (Math.abs(dragDistance) > 40) moveEnvelope(dragDistance < 0 ? 1 : -1);
+    startAutoRotate();
+  }
+
+  carousel.addEventListener('pointerdown', event => {
+    if (cards.length < 2 || isOpen) return;
+    awaitingDrag = true;
+    startX = event.clientX;
+    dragDistance = 0;
+    // mice/trackpads drift several pixels during an ordinary click — give them
+    // more slack than touch so a plain click isn't mistaken for a swipe
+    dragThreshold = event.pointerType === 'mouse' ? 24 : 8;
+    window.clearInterval(autoRotate);
+  });
+  carousel.addEventListener('pointermove', event => {
+    if (!awaitingDrag) return;
+    dragDistance = event.clientX - startX;
+    if (!dragging && Math.abs(dragDistance) > dragThreshold) {
+      dragging = true;
+      carousel.classList.add('dragging');
+      carousel.setPointerCapture(event.pointerId);
+    }
+    if (dragging) carousel.style.setProperty('--drag-offset', `${dragDistance * 0.45}px`);
+  });
+  carousel.addEventListener('pointerup', endDrag);
+  carousel.addEventListener('pointercancel', endDrag);
 })();
 
 /* ============================================================
@@ -1900,6 +2086,6 @@ initScratch('bouquetFrame', 'bouquetCanvas');
 </script>
 
 <script data-goatcounter="https://kleddiiii.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
-
+  
 </body>
 </html>
