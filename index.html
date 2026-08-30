@@ -729,6 +729,17 @@
     user-select: none;
     -webkit-touch-callout: none;
   }
+
+  /* canvas-rendered "private text" — the blur is already baked into
+     the pixels here, this filter is just a harmless extra fallback */
+  canvas.private-text-canvas{
+    display:inline-block;
+    vertical-align:top;
+    pointer-events:none;
+    user-select:none;
+    -webkit-touch-callout:none;
+  }
+  .reveal-caption{ display:flex; flex-direction:column; align-items:center; }
 </style>
 </head>
 <body>
@@ -917,7 +928,7 @@
     </div>
     <div class="page-queue-label" id="queueLabelPage">your songs — choose one to play</div>
     <div class="music-note">
-      <p>Your player is always down in the corner, so the music can follow you while you explore. Open its playlist button to pick a different song, or hide it and bring it back whenever you want.</p>
+      <p id="musicNoteText"></p>
       <button class="tile" id="openPlaylistBtn" style="display:inline-flex;padding:11px 16px;flex-direction:row;">open the player</button>
     </div>
   </div>
@@ -957,7 +968,7 @@
       <button class="photo-next" id="nextPhotoBtn" type="button">Next photo <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <span class="photo-position" id="photoPosition" aria-live="polite"></span>
     </div>
-    <div class="reveal-caption">it keeps turning on its own<span class="script">drag it whenever you want to look closer</span></div>
+    <div class="reveal-caption"><span id="usCaptionMain"></span><span class="script" id="usCaptionScript"></span></div>
   </div>
 </section>
 
@@ -970,7 +981,7 @@
       <div class="reveal-under" id="bouquetUnder"></div>
       <canvas class="reveal-canvas" id="bouquetCanvas"></canvas>
     </div>
-    <div class="reveal-caption">tap or swipe to unwrap it<span class="script">picked just for you</span></div>
+    <div class="reveal-caption"><span id="bouquetCaptionMain"></span><span class="script" id="bouquetCaptionScript"></span></div>
   </div>
 </section>
 
@@ -1428,6 +1439,126 @@ const CONFIG = {
 };
 
 /* ============================================================
+   PRIVATE TEXT — renders sensitive message text as already-blurred
+   pixels on a <canvas>, instead of setting it as real DOM text.
+   This is what actually keeps the message hidden from "Inspect
+   Element": a CSS blur filter alone leaves the real text sitting
+   in the DOM (readable via devtools or select-all/copy). Baking
+   the blur into the canvas's pixels means there is no text node
+   in the page at all for a message that hasn't been unlocked —
+   Inspect Element only ever shows an empty <canvas>.
+   (Note: this protects the rendered page/DOM. It doesn't encrypt
+   the source file itself — anyone opening this .html in a text
+   editor can still find the plain strings inside CONFIG below.
+   Ask me if you'd like that layer obfuscated too.)
+   ============================================================ */
+const PrivateText = (function(){
+  const registry = new WeakMap();
+
+  function wrapLines(ctx, text, maxWidth){
+    const paragraphs = String(text).split('\n');
+    const lines = [];
+    paragraphs.forEach(paragraph => {
+      if (!paragraph) { lines.push(''); return; }
+      const words = paragraph.split(' ');
+      let line = '';
+      words.forEach(word => {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      });
+      lines.push(line);
+    });
+    return lines;
+  }
+
+  function resolveStyle(el, opts){
+    const computed = window.getComputedStyle(el);
+    const fontSize = parseFloat(computed.fontSize) || 16;
+    let lineHeight = opts.lineHeight || parseFloat(computed.lineHeight);
+    if (!lineHeight || Number.isNaN(lineHeight)) lineHeight = fontSize * 1.4;
+    let align = opts.align || computed.textAlign;
+    if (align === 'start' || !align) align = 'left';
+    if (align === 'end') align = 'right';
+    return {
+      font: opts.font || `${computed.fontStyle} ${computed.fontWeight} ${fontSize}px ${computed.fontFamily}`,
+      color: opts.color || computed.color,
+      lineHeight,
+      align,
+      blur: opts.blur ?? 7
+    };
+  }
+
+  function draw(el, text, style){
+    if (!text) return;
+    const width = Math.round(el.clientWidth || el.getBoundingClientRect().width);
+    if (!width) return; // page/section not visible yet — ResizeObserver will redraw once it is
+
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = style.font;
+    const margin = Math.ceil(style.blur * 1.5);
+    const maxTextWidth = Math.max(10, width - margin * 2);
+    const lines = wrapLines(measure, text, maxTextWidth);
+    const height = Math.max(style.lineHeight, lines.length * style.lineHeight) + margin * 2;
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+
+    let canvas = el.querySelector(':scope > canvas.private-text-canvas');
+    if (!canvas){
+      canvas = document.createElement('canvas');
+      canvas.className = 'private-text-canvas';
+      canvas.setAttribute('aria-hidden', 'true');
+      el.innerHTML = '';
+      el.appendChild(canvas);
+    }
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = style.font;
+    ctx.fillStyle = style.color;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = style.align;
+    ctx.filter = `blur(${style.blur}px)`;
+    const x = style.align === 'center' ? width / 2 : (style.align === 'right' ? width - margin : margin);
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x, margin + (i + 1) * style.lineHeight - style.lineHeight * 0.28);
+    });
+  }
+
+  // Replaces el's content with a blurred-pixel rendering of `text`.
+  // Safe to call repeatedly on the same el (e.g. paginated notes) —
+  // it reuses the canvas + observer instead of stacking new ones.
+  function protect(el, text, opts = {}){
+    if (!el) return;
+    let entry = registry.get(el);
+    if (!entry){
+      entry = { text: '', style: null, timer: null };
+      entry.ro = new ResizeObserver(() => {
+        // debounced so animated width changes (e.g. the envelope opening)
+        // don't trigger dozens of re-renders mid-transition
+        clearTimeout(entry.timer);
+        entry.timer = setTimeout(() => draw(el, entry.text, entry.style), 120);
+      });
+      entry.ro.observe(el);
+      registry.set(el, entry);
+    }
+    entry.text = text || '';
+    entry.style = resolveStyle(el, opts);
+    draw(el, entry.text, entry.style);
+  }
+
+  return { protect };
+})();
+
+/* ============================================================
    populate text content from CONFIG
    ============================================================ */
 document.getElementById('heroName').textContent = CONFIG.herName;
@@ -1445,7 +1576,7 @@ document.querySelectorAll('.switch-btn[data-playlist="top100"]').forEach(el => e
 // Daily-note reminder
 document.getElementById('dailyIntroKicker').textContent = CONFIG.dailyIntro.kicker;
 document.getElementById('dailyIntroTitle').textContent = CONFIG.dailyIntro.title;
-document.getElementById('dailyIntroMessage').textContent = CONFIG.dailyIntro.message;
+PrivateText.protect(document.getElementById('dailyIntroMessage'), CONFIG.dailyIntro.message);
 document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.button;
 // Daily note book
 (function dailyNotes(){
@@ -1478,7 +1609,7 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
     heading.textContent = 'one last thing';
     dateEl.textContent = formatDate(date);
     countEl.textContent = `page ${currentPage + 1} of ${totalDays}`;
-    messageEl.textContent = CONFIG.dailyMessages[currentPage] || `Write your message for Day ${currentPage + 1} in the daily notes list.`;
+    PrivateText.protect(messageEl, CONFIG.dailyMessages[currentPage] || `Write your message for Day ${currentPage + 1} in the daily notes list.`);
     pageNumberEl.textContent = `Day ${currentPage + 1}`;
     pageTotalEl.textContent = `${currentPage + 1} of ${totalDays}`;
     previousBtn.disabled = currentPage === 0;
@@ -1498,34 +1629,44 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
   });
   renderPage();
 })();
-document.getElementById('whyText').textContent = CONFIG.whyText;
-document.getElementById('whoText').textContent = CONFIG.whoText;
+PrivateText.protect(document.getElementById('whyText'), CONFIG.whyText);
+PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
+PrivateText.protect(document.getElementById('musicNoteText'), "Your player is always down in the corner, so the music can follow you while you explore. Open its playlist button to pick a different song, or hide it and bring it back whenever you want.");
+PrivateText.protect(document.getElementById('usCaptionMain'), "it keeps turning on its own");
+PrivateText.protect(document.getElementById('usCaptionScript'), "drag it whenever you want to look closer");
+PrivateText.protect(document.getElementById('bouquetCaptionMain'), "tap or swipe to unwrap it");
+PrivateText.protect(document.getElementById('bouquetCaptionScript'), "picked just for you");
 
 /* ---------- reasons list (click/press to reveal) ---------- */
 (function renderReasons(){
   const list = document.getElementById('reasonsList');
   const reasons = (CONFIG.reasons || []).filter(r => r && r.trim());
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   if (!reasons.length) {
     document.getElementById('reasonsTile').hidden = true;
     return;
   }
 
-  list.innerHTML = reasons.map((r, i) => `
-    <button type="button" class="reason-item" aria-expanded="false">
+  reasons.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'reason-item';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = `
       <span class="reason-num">${i + 1}</span>
       <span class="reason-body">
         <span class="reason-prompt">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4.5c2-2.5 6-2.5 7.5.5 1.5 3-1 6.5-7.5 12-6.5-5.5-9-9-7.5-12 1.5-3 5.5-3 7.5-.5z"/></svg>
           tap to reveal
         </span>
-        <p class="reason-text">${esc(r)}</p>
+        <p class="reason-text"></p>
       </span>
-    </button>
-  `).join('');
+    `;
+    list.appendChild(btn);
+    // The reason text is never set as real DOM text — it's drawn
+    // straight to a blurred canvas, even while the card is collapsed.
+    PrivateText.protect(btn.querySelector('.reason-text'), r);
 
-  list.querySelectorAll('.reason-item').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.classList.contains('revealed')) return; // stays open once revealed
       btn.classList.add('revealed');
@@ -1865,8 +2006,10 @@ document.getElementById('signature').textContent = `coded late at night, with lo
     const letterPaper = card.querySelector('.letter-paper');
     text.split('\n\n').forEach(p => {
       const el = document.createElement('p');
-      el.textContent = p;
       letterPaper.appendChild(el);
+      // Letter text is drawn as blurred pixels, not set as real text —
+      // so it can't be read from the DOM before the letter is opened.
+      PrivateText.protect(el, p, { blur: 6 });
     });
 
     const env = card.querySelector('.envelope');
