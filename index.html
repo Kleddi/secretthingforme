@@ -717,14 +717,9 @@
   /* ---------- text is visible but unreadable; everything else stays fully usable ---------- */
   #whyText,
   #whoText,
-  #reasonsList,
-  #reasonsList *,
-  #page-music .music-note p,
-  #page-us .reveal-caption,
-  #page-bouquet .reveal-caption,
-  #dailyIntroMessage,
+  #reasonsList .reason-text,
   #dailyNoteMessage,
-  .envelope{
+  .envelope .letter-paper{
     filter: blur(6px);
     user-select: none;
     -webkit-touch-callout: none;
@@ -1137,11 +1132,14 @@ const CONFIG = {
     "I love how you always find a way to sama with me, kahit na you didn\'t really plan to.",
     "I love how after everything I did, you still payag to KITA with me.",
     "I love learning new things about you, I will always be curious about you.",
-    "I love knowing you more deeply, like how I love seeing you, I also wanna see you grow with me.",
     "I love doing things without any particular reason or event, these just because is one way to show my love for you.",
     "I love how considerate you are when it comes to me, after all I did? You still think about me, my feelings, how I would feel in the future.",
     "I love how you fight with me when gusto mong sumama, like papagalitan kana, please just go home",
     "I love hearing you still tell me about your mom.",
+    "I lowkey love seeing you dance, it makes me intrigrued.",
+    "I love seeing you frown, like the \"AWWWW\" face of yours, I find it really cute.",
+    "I love seeing your proud state of someone, I can see the genuinity of your soul.",
+    "I love knowing you more deeply, like how I love seeing you, I also wanna see you grow with me.",
     "",
     "I will always love seeing you, that\'ll be my definition of \"My day is made.\"",
 
@@ -1540,12 +1538,17 @@ const PrivateText = (function(){
     if (!el) return;
     let entry = registry.get(el);
     if (!entry){
-      entry = { text: '', style: null, timer: null };
+      entry = { text: '', style: null, raf: null };
       entry.ro = new ResizeObserver(() => {
-        // debounced so animated width changes (e.g. the envelope opening)
-        // don't trigger dozens of re-renders mid-transition
-        clearTimeout(entry.timer);
-        entry.timer = setTimeout(() => draw(el, entry.text, entry.style), 120);
+        // redraw on every animation frame while the box is resizing (e.g.
+        // the envelope/letter opening), throttled to one draw per frame so
+        // the text scales smoothly along with it instead of sitting at the
+        // wrong size for the whole transition and snapping into place late
+        if (entry.raf) return;
+        entry.raf = requestAnimationFrame(() => {
+          entry.raf = null;
+          draw(el, entry.text, entry.style);
+        });
       });
       entry.ro.observe(el);
       registry.set(el, entry);
@@ -1576,7 +1579,7 @@ document.querySelectorAll('.switch-btn[data-playlist="top100"]').forEach(el => e
 // Daily-note reminder
 document.getElementById('dailyIntroKicker').textContent = CONFIG.dailyIntro.kicker;
 document.getElementById('dailyIntroTitle').textContent = CONFIG.dailyIntro.title;
-PrivateText.protect(document.getElementById('dailyIntroMessage'), CONFIG.dailyIntro.message);
+document.getElementById('dailyIntroMessage').textContent = CONFIG.dailyIntro.message;
 document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.button;
 // Daily note book
 (function dailyNotes(){
@@ -1631,11 +1634,11 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
 })();
 PrivateText.protect(document.getElementById('whyText'), CONFIG.whyText);
 PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
-PrivateText.protect(document.getElementById('musicNoteText'), "Your player is always down in the corner, so the music can follow you while you explore. Open its playlist button to pick a different song, or hide it and bring it back whenever you want.");
-PrivateText.protect(document.getElementById('usCaptionMain'), "it keeps turning on its own");
-PrivateText.protect(document.getElementById('usCaptionScript'), "drag it whenever you want to look closer");
-PrivateText.protect(document.getElementById('bouquetCaptionMain'), "tap or swipe to unwrap it");
-PrivateText.protect(document.getElementById('bouquetCaptionScript'), "picked just for you");
+document.getElementById('musicNoteText').textContent = "Your player is always down in the corner, so the music can follow you while you explore. Open its playlist button to pick a different song, or hide it and bring it back whenever you want.";
+document.getElementById('usCaptionMain').textContent = "it keeps turning on its own";
+document.getElementById('usCaptionScript').textContent = "drag it whenever you want to look closer";
+document.getElementById('bouquetCaptionMain').textContent = "tap or swipe to unwrap it";
+document.getElementById('bouquetCaptionScript').textContent = "picked just for you";
 
 /* ---------- reasons list (click/press to reveal) ---------- */
 (function renderReasons(){
