@@ -1949,6 +1949,8 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
       if (btn.classList.contains('revealed')) return; // stays open once revealed
       btn.classList.add('revealed');
       btn.setAttribute('aria-expanded', 'true');
+      // the hub only credits "reasons" once one has actually been read
+      if (window.markHubVisited) window.markHubVisited('reasons');
     });
   });
 })();
@@ -2015,8 +2017,6 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
       if (btn.classList.contains('revealed')) return; // stays open once revealed
       btn.classList.add('revealed');
       btn.setAttribute('aria-expanded', 'true');
-      // the hub only credits "reasons" once one has actually been read
-      if (window.markHubVisited) window.markHubVisited('reasons');
     });
   });
 })();
