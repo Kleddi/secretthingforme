@@ -1968,9 +1968,9 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
     btn.setAttribute('aria-expanded', 'false');
     btn.innerHTML = `<span class="reason-num">${index + 1}</span><span class="reason-body"><span class="flower-name"></span><span class="reason-prompt">tap to reveal its meaning</span><p class="reason-text"></p></span>`;
     // The flower label is personal too, so keep it out of the live DOM.
-    PrivateText.protect(btn.querySelector('.flower-name'), item.flower);
+    PrivateText.protect(btn.querySelector('.flower-name'), item.flower, { color: '#f6f1e9' });
     // Keep the personal meaning out of the live DOM, just like reasons and song notes.
-    PrivateText.protect(btn.querySelector('.reason-text'), item.meaning);
+    PrivateText.protect(btn.querySelector('.reason-text'), item.meaning, { color: '#f6f1e9' });
     btn.addEventListener('click', () => {
       if (btn.classList.contains('revealed')) return;
       btn.classList.add('revealed');
