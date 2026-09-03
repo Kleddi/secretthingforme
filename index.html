@@ -2493,11 +2493,18 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
   // messages whose date has already arrived. Anything not yet revealed
   // is simply absent, so there is nothing here for a crawler, an AI, or
   // anyone reading the page source to find early.
+  //
+  // Entries that ARE present are still AES-256-GCM ciphertext, same as
+  // the rest of the site's protected fields — decrypted here, client-side,
+  // right before being handed to the blur canvas. This means even an
+  // already-revealed day's plaintext never sits in the public repo in
+  // the clear (e.g. someone fetching revealed.json directly gets ciphertext,
+  // not readable text).
   try {
     const res = await fetch('revealed.json', { cache: 'no-store' });
     if (res.ok) {
-      const revealed = await res.json(); // sparse array, index-aligned to dailyStartDate
-      CONFIG.dailyMessages = revealed;
+      const revealedCipher = await res.json(); // sparse array of ciphertext, index-aligned to dailyStartDate
+      CONFIG.dailyMessages = await unlockAll(revealedCipher);
     }
   } catch (err) {
     console.warn('Could not load revealed.json — daily notes will show placeholders.', err);
