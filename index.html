@@ -37,6 +37,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Ask well-behaved crawlers (search + AI) not to index or train on this page.
+     This is an honor-system signal, not a technical block — a page has to be
+     readable by anything that loads it to be readable by anyone at all, so
+     this only stops crawlers that choose to respect it (most major ones do). -->
+<meta name="robots" content="noindex, nofollow, noai, noimageai, noarchive">
+<meta name="googlebot" content="noindex, nofollow">
 <title>for you</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Outfit:wght@300;400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
@@ -930,9 +936,17 @@
   #flowerMeaningsList .flower-name,
   #flowerMeaningsList .reason-text,
   #photoCaptionText,
-  #dailyNoteMessage,
   .envelope .letter-paper{
     filter: blur(6px);
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* #dailyNoteMessage is intentionally NOT in the rule above: its blur is
+     baked entirely into the canvas pixels by PrivateText (word by word),
+     so any word in CONFIG.dailyReveals can render fully sharp. A blanket
+     CSS filter here would blur that sharp word too, on top of the canvas. */
+  #dailyNoteMessage{
     user-select: none;
     -webkit-touch-callout: none;
   }
@@ -1410,6 +1424,13 @@ const CONFIG = {
   },
   dailyStartDate: "2026-07-30",
   dailyEndDate: "2026-11-20",
+  // Each entry keeps that day's note fully blurred as always, but renders
+  // the given "text" — an exact substring of that day's CONFIG.dailyMessages
+  // entry (e.g. one whole sentence, punctuation and all) — sharp/unblurred
+  // within it. Leave the array empty ([]) to blur every day completely.
+  dailyReveals: [
+    { date: "2026-08-30", text: "I played ALLLLLLLLL DAYYYY!!" }
+  ],
   dailyMessages: [
     "July 30, 2026 - My day was so bad, I cried twice. I was constantly thinking of how it could have went we I didn't say that. But kept saying to myself that \"atleast I was honest\" cause you really deserve to know everything. I tried to go somewhere where I could really distract myself to not think about what had happened, I couldn\'t. Stephen did everything to help me, all I did to him his cry in his arms, we had deep talks about life, how I wish you would be here in every achievement I wanna do, specially the ones where I repay everything to my family. I wanted you see me do it, I wanted for you to be the first person I could ever lean on when things get hard. I was sad when you said you we're going to move on from me, I didn't want that, cause what I truly want is for us to be together til the end.", // Day 1
     "July 31, 2026 - Got a little better, but kept finding your presence. I tried to find something that isn't reachable, your presence was something I truly valued, but now that its gone, I still feel empty, while even trying to distract myself from thinking about it. Running away from it doesn't save me from it, even while im with my closest friends, hanging out, having fun and all, I still feel lonely, I kept finding something that isn\'t reachable, you. How I wish I could just chat you one more time, and tell you, \'Can I go to your house?\' those days will always be the best, me resting in your arms, something I would always call my Home.", // Day 2
@@ -1720,20 +1741,49 @@ const CONFIG = {
 const PrivateText = (function(){
   const registry = new WeakMap();
 
-  function wrapLines(ctx, text, maxWidth){
-    const paragraphs = String(text).split('\n');
+  // Splits text into paragraphs of word tokens, each tagged with its
+  // absolute start/end character offset in the original string. The
+  // offsets are what let draw() later decide, word by word, whether a
+  // given word falls inside a "clear" range that should render sharp
+  // instead of blurred.
+  function tokenize(text){
+    const full = String(text);
+    const paragraphs = [];
+    let offset = 0;
+    const rawParagraphs = full.split('\n');
+    rawParagraphs.forEach((paragraph, pIndex) => {
+      const words = [];
+      if (paragraph) {
+        let cursor = offset;
+        paragraph.split(' ').forEach(word => {
+          const start = cursor;
+          const end = start + word.length;
+          words.push({ word, start, end });
+          cursor = end + 1; // +1 skips the single space between words
+        });
+      }
+      paragraphs.push(words);
+      offset += paragraph.length;
+      if (pIndex < rawParagraphs.length - 1) offset += 1; // the '\n' itself
+    });
+    return paragraphs;
+  }
+
+  function wrapLines(ctx, paragraphsTokens, maxWidth){
     const lines = [];
-    paragraphs.forEach(paragraph => {
-      if (!paragraph) { lines.push(''); return; }
-      const words = paragraph.split(' ');
-      let line = '';
-      words.forEach(word => {
-        const test = line ? line + ' ' + word : word;
-        if (ctx.measureText(test).width > maxWidth && line) {
+    paragraphsTokens.forEach(words => {
+      if (!words.length) { lines.push([]); return; }
+      let line = [];
+      let lineText = '';
+      words.forEach(tok => {
+        const test = lineText ? lineText + ' ' + tok.word : tok.word;
+        if (ctx.measureText(test).width > maxWidth && lineText) {
           lines.push(line);
-          line = word;
+          line = [tok];
+          lineText = tok.word;
         } else {
-          line = test;
+          line.push(tok);
+          lineText = test;
         }
       });
       lines.push(line);
@@ -1758,7 +1808,10 @@ const PrivateText = (function(){
     };
   }
 
-  function draw(el, text, style){
+  // clearRange, when given, is { start, end } absolute character offsets
+  // (into the original text string) that should render without blur —
+  // everything else still renders through the usual blur filter.
+  function draw(el, text, style, clearRange){
     if (!text) return;
     const width = Math.round(el.clientWidth || el.getBoundingClientRect().width);
     if (!width) return; // page/section not visible yet — ResizeObserver will redraw once it is
@@ -1767,7 +1820,8 @@ const PrivateText = (function(){
     measure.font = style.font;
     const margin = Math.ceil(style.blur * 1.5);
     const maxTextWidth = Math.max(10, width - margin * 2);
-    const lines = wrapLines(measure, text, maxTextWidth);
+    const paragraphsTokens = tokenize(text);
+    const lines = wrapLines(measure, paragraphsTokens, maxTextWidth);
     const height = Math.max(style.lineHeight, lines.length * style.lineHeight) + margin * 2;
     const scale = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -1790,22 +1844,36 @@ const PrivateText = (function(){
     ctx.font = style.font;
     ctx.fillStyle = style.color;
     ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = style.align;
-    ctx.filter = `blur(${style.blur}px)`;
-    const x = style.align === 'center' ? width / 2 : (style.align === 'right' ? width - margin : margin);
-    lines.forEach((line, i) => {
-      ctx.fillText(line, x, margin + (i + 1) * style.lineHeight - style.lineHeight * 0.28);
+    ctx.textAlign = 'left';
+
+    lines.forEach((tokens, i) => {
+      if (!tokens.length) return;
+      const y = margin + (i + 1) * style.lineHeight - style.lineHeight * 0.28;
+      const lineText = tokens.map(t => t.word).join(' ');
+      const lineWidth = ctx.measureText(lineText).width;
+      let x = margin;
+      if (style.align === 'center') x = (width - lineWidth) / 2;
+      else if (style.align === 'right') x = width - margin - lineWidth;
+
+      tokens.forEach(tok => {
+        const isClear = clearRange && tok.start < clearRange.end && tok.end > clearRange.start;
+        ctx.filter = isClear ? 'none' : `blur(${style.blur}px)`;
+        ctx.fillText(tok.word, x, y);
+        x += ctx.measureText(tok.word + ' ').width;
+      });
     });
   }
 
   // Replaces el's content with a blurred-pixel rendering of `text`.
   // Safe to call repeatedly on the same el (e.g. paginated notes) —
   // it reuses the canvas + observer instead of stacking new ones.
+  // opts.clearText: an exact substring of `text` (e.g. one sentence) that
+  // should render sharp/unblurred within the otherwise-blurred paragraph.
   function protect(el, text, opts = {}){
     if (!el) return;
     let entry = registry.get(el);
     if (!entry){
-      entry = { text: '', style: null, raf: null };
+      entry = { text: '', clearRange: null, style: null, raf: null };
       entry.ro = new ResizeObserver(() => {
         // redraw on every animation frame while the box is resizing (e.g.
         // the envelope/letter opening), throttled to one draw per frame so
@@ -1814,7 +1882,7 @@ const PrivateText = (function(){
         if (entry.raf) return;
         entry.raf = requestAnimationFrame(() => {
           entry.raf = null;
-          draw(el, entry.text, entry.style);
+          draw(el, entry.text, entry.style, entry.clearRange);
         });
       });
       entry.ro.observe(el);
@@ -1822,11 +1890,35 @@ const PrivateText = (function(){
     }
     entry.text = text || '';
     entry.style = resolveStyle(el, opts);
-    draw(el, entry.text, entry.style);
+    if (opts.clearText) {
+      const idx = entry.text.indexOf(opts.clearText);
+      entry.clearRange = idx === -1 ? null : { start: idx, end: idx + opts.clearText.length };
+    } else {
+      entry.clearRange = null;
+    }
+    draw(el, entry.text, entry.style, entry.clearRange);
   }
 
-  return { protect };
+  // Fully tears down protection on el: disconnects its ResizeObserver,
+  // cancels any pending redraw, and removes the canvas. Only needed if
+  // an element that was protected should later hold plain, non-canvas
+  // DOM content instead — otherwise a later resize can fire the old
+  // observer and silently redraw a stale canvas back over that content.
+  function unprotect(el){
+    if (!el) return;
+    const entry = registry.get(el);
+    if (entry){
+      if (entry.ro) entry.ro.disconnect();
+      if (entry.raf) cancelAnimationFrame(entry.raf);
+      registry.delete(el);
+    }
+    const canvas = el.querySelector(':scope > canvas.private-text-canvas');
+    if (canvas) canvas.remove();
+  }
+
+  return { protect, unprotect };
 })();
+
 
 /* ============================================================
    populate text content from CONFIG
@@ -1882,7 +1974,12 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
     heading.textContent = 'one last thing';
     dateEl.textContent = formatDate(date);
     countEl.textContent = `page ${currentPage + 1} of ${totalDays}`;
-    PrivateText.protect(messageEl, CONFIG.dailyMessages[currentPage] || `Write your message for Day ${currentPage + 1} in the daily notes list.`);
+    const noteText = CONFIG.dailyMessages[currentPage] || `Write your message for Day ${currentPage + 1} in the daily notes list.`;
+    const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const reveal = (CONFIG.dailyReveals || []).find(r => r && r.date === isoDate);
+    // The note stays fully blurred as always; if this date has a reveal
+    // entry, that exact sentence renders sharp within the same canvas.
+    PrivateText.protect(messageEl, noteText, reveal ? { clearText: reveal.text } : {});
     pageNumberEl.textContent = `Day ${currentPage + 1}`;
     pageTotalEl.textContent = `${currentPage + 1} of ${totalDays}`;
     previousBtn.disabled = currentPage === 0;
