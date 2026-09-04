@@ -1447,7 +1447,7 @@ const CONFIG = {
   "dailyReveals": [
     {
       "date": "2026-09-03",
-      "text": "I hope you'd be able to see this day's message."
+      "text": "PFwKhaKk0YYSjYkSQowX2T3rQI7KJPDCJ+BVVmqHWBd4EiDK5/uz/dSFICUVoo/hhTa4ms0KdLeMLIbEqJWf7WKCfv9L0Td9xkGXB/BBD77dCmpzO5IxcYXvx9o="
     }
   ],
   "dailyMessages": [],
@@ -2267,12 +2267,23 @@ function _getSiteKey(){
 }
 async function unlock(blobB64){
   if (!blobB64) return "";
-  const packed = Uint8Array.from(atob(blobB64), c => c.charCodeAt(0));
-  const iv = packed.slice(0, 12);
-  const data = packed.slice(12); // ciphertext + GCM auth tag
-  const key = await _getSiteKey();
-  const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
-  return new TextDecoder().decode(plainBuf);
+  // A single malformed/mismatched-key ciphertext must never take the whole
+  // page down with it — hydrateConfig() awaits many of these in parallel,
+  // and an uncaught rejection here would abort every task after it,
+  // including router() setup (hub navigation) and everything else that
+  // runs later in the same async IIFE. So: fail this one field quietly,
+  // not the entire site.
+  try {
+    const packed = Uint8Array.from(atob(blobB64), c => c.charCodeAt(0));
+    const iv = packed.slice(0, 12);
+    const data = packed.slice(12); // ciphertext + GCM auth tag
+    const key = await _getSiteKey();
+    const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+    return new TextDecoder().decode(plainBuf);
+  } catch (err) {
+    console.warn('[unlock] a protected field failed to decrypt — showing it blank instead of breaking the page.', err);
+    return "";
+  }
 }
 async function unlockAll(arr){ return Promise.all((arr || []).map(unlock)); }
 async function hydrateConfig(){
