@@ -936,20 +936,24 @@
   #flowerMeaningsList .flower-name,
   #flowerMeaningsList .reason-text,
   #photoCaptionText,
+  #dailyNoteMessage,
   .envelope .letter-paper{
     filter: blur(6px);
     user-select: none;
     -webkit-touch-callout: none;
   }
 
-  /* #dailyNoteMessage is intentionally NOT in the rule above: its blur is
-     baked entirely into the canvas pixels by PrivateText (word by word),
-     so any word in CONFIG.dailyReveals can render fully sharp. A blanket
-     CSS filter here would blur that sharp word too, on top of the canvas. */
-  #dailyNoteMessage{
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
+  /* #dailyNoteMessage now gets the same CSS blur as every other protected
+     field, as a reliable fallback in case the canvas-level blur doesn't
+     apply correctly (this happened on some iOS Safari versions: the canvas
+     rendered, but the per-word ctx.filter blur silently failed, leaving
+     daily notes fully readable while every CSS-blurred field stayed
+     protected). One side effect: the CONFIG.dailyReveals "sharp sentence"
+     is drawn unblurred at the canvas level, but this outer CSS blur still
+     softens it a little — it reads noticeably clearer than the rest of the
+     paragraph (which gets both the canvas blur AND this CSS blur), just not
+     perfectly crisp. That trade-off is intentional: guaranteed blur on every
+     device matters more than that one sentence being pixel-perfect sharp. */
 
   /* canvas-rendered "private text" — the blur is already baked into
      the pixels here, this filter is just a harmless extra fallback */
