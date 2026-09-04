@@ -2307,6 +2307,7 @@ async function hydrateConfig(){
    ============================================================ */
 const PrivateText = (function(){
   const registry = new WeakMap();
+  const tracked = new Set();
 
   // Splits text into paragraphs of word tokens, each tagged with its
   // absolute start/end character offset in the original string. The
@@ -2375,6 +2376,60 @@ const PrivateText = (function(){
     };
   }
 
+  // Normalizes curly quotes/apostrophes to their straight equivalents so a
+  // clear-text match doesn't fail just because one side used ' and the
+  // other used a typographic quote.
+  function normalizeChar(ch){
+    if (ch === '\u2018' || ch === '\u2019' || ch === '\u02bc') return "'";
+    if (ch === '\u201c' || ch === '\u201d') return '"';
+    return ch;
+  }
+
+  // Builds a lowercase, whitespace-collapsed version of `text` plus a map
+  // from each character in that normalized string back to its index in
+  // the ORIGINAL string, so a fuzzy match can still return exact
+  // original-text character offsets.
+  function buildNormalizedMap(text){
+    const chars = [];
+    const map = [];
+    let lastWasSpace = false;
+    for (let i = 0; i < text.length; i++){
+      const ch = normalizeChar(text[i]);
+      if (/\s/.test(ch)){
+        if (lastWasSpace) continue;
+        chars.push(' '); map.push(i); lastWasSpace = true;
+      } else {
+        chars.push(ch.toLowerCase()); map.push(i); lastWasSpace = false;
+      }
+    }
+    return { normalized: chars.join(''), map };
+  }
+
+  // Finds `snippet` inside `fullText` and returns its character range.
+  // Tries an exact match first (fastest, and preserves the snippet's own
+  // punctuation/casing exactly). Falls back to a case-insensitive,
+  // curly-quote-normalized, whitespace-collapsed match — mapped back onto
+  // the ORIGINAL text's real character offsets — so small differences in
+  // capitalization, straight vs curly quotes, or a stray double space
+  // between the day's note and its CONFIG.dailyReveals entry don't
+  // silently leave the sentence blurred. Returns null (and lets the
+  // caller warn) only if truly nothing matches.
+  function findClearRange(fullText, snippet){
+    if (!snippet) return null;
+    const trimmed = snippet.trim();
+    if (!trimmed) return null;
+
+    const idx = fullText.indexOf(trimmed);
+    if (idx !== -1) return { start: idx, end: idx + trimmed.length };
+
+    const { normalized: normFull, map } = buildNormalizedMap(fullText);
+    const { normalized: normSnippet } = buildNormalizedMap(trimmed);
+    if (!normSnippet) return null;
+    const normIdx = normFull.indexOf(normSnippet);
+    if (normIdx === -1) return null;
+    return { start: map[normIdx], end: map[normIdx + normSnippet.length - 1] + 1 };
+  }
+
   // clearRange, when given, is { start, end } absolute character offsets
   // (into the original text string) that should render without blur.
   //
@@ -2384,14 +2439,19 @@ const PrivateText = (function(){
   // comes entirely from a plain CSS `filter` set on the base canvas element
   // itself — the same reliable mechanism every other browser/element uses
   // for CSS filters, nothing canvas-context-specific about it:
-  //   - base canvas: draws the full text, blurred via el.style.filter.
+  //   - base canvas: draws only the words that should stay blurred (every
+  //     word when there's no clear range; every word EXCEPT the clear-range
+  //     words when there is one), blurred via el.style.filter.
   //   - clear canvas: only drawn when a clearRange exists; transparent
   //     everywhere except the clear words, and never blurred, so it sits
   //     sharp on top of the blurred base exactly where those words are.
+  //     Because the base layer no longer paints those same words underneath
+  //     it, there's nothing blurred behind the sharp text to bleed through
+  //     as a halo/ghost around it.
   function draw(el, text, style, clearRange){
     if (!text) return;
     const width = Math.round(el.clientWidth || el.getBoundingClientRect().width);
-    if (!width) return; // page/section not visible yet — ResizeObserver will redraw once it is
+    if (!width) return; // page/section not visible yet — redrawn on next page-show or resize
 
     const measure = document.createElement('canvas').getContext('2d');
     measure.font = style.font;
@@ -2425,9 +2485,10 @@ const PrivateText = (function(){
       canvas.style.height = height + 'px';
     });
     baseCanvas.style.filter = `blur(${style.blur}px)`;
+    baseCanvas.style.webkitFilter = `blur(${style.blur}px)`; // extra safety net for older WebKit builds
     clearCanvas.style.display = clearRange ? 'block' : 'none';
 
-    function paint(canvas, onlyClear){
+    function paint(canvas, mode){ // mode: 'all' | 'nonClearOnly' | 'clearOnly'
       const ctx = canvas.getContext('2d');
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.clearRect(0, 0, width, height);
@@ -2448,21 +2509,27 @@ const PrivateText = (function(){
         tokens.forEach(tok => {
           const isClear = !!(clearRange && tok.start < clearRange.end && tok.end > clearRange.start);
           const advance = ctx.measureText(tok.word + ' ').width;
-          if (!onlyClear || isClear) ctx.fillText(tok.word, x, y);
+          const shouldDraw = mode === 'all' || (mode === 'nonClearOnly' && !isClear) || (mode === 'clearOnly' && isClear);
+          if (shouldDraw) ctx.fillText(tok.word, x, y);
           x += advance;
         });
       });
     }
 
-    paint(baseCanvas, false); // base always draws every word — it's the blurred layer underneath
-    if (clearRange) paint(clearCanvas, true); // sharp overlay: only the clear words
+    // The base layer only ever paints the words meant to stay blurred. When
+    // there's a clear range, its words are left out of the base layer
+    // entirely — otherwise a blurred copy of that same word would sit
+    // directly underneath the sharp overlay and show through as a halo.
+    paint(baseCanvas, clearRange ? 'nonClearOnly' : 'all');
+    if (clearRange) paint(clearCanvas, 'clearOnly'); // sharp overlay: only the clear words
   }
 
   // Replaces el's content with a blurred-pixel rendering of `text`.
   // Safe to call repeatedly on the same el (e.g. paginated notes) —
   // it reuses the canvas + observer instead of stacking new ones.
-  // opts.clearText: an exact substring of `text` (e.g. one sentence) that
-  // should render sharp/unblurred within the otherwise-blurred paragraph.
+  // opts.clearText: an exact (or near-exact — see findClearRange) substring
+  // of `text` (e.g. one sentence) that should render sharp/unblurred within
+  // the otherwise-blurred paragraph.
   function protect(el, text, opts = {}){
     if (!el) return;
     let entry = registry.get(el);
@@ -2481,16 +2548,37 @@ const PrivateText = (function(){
       });
       entry.ro.observe(el);
       registry.set(el, entry);
+      tracked.add(el);
     }
     entry.text = text || '';
     entry.style = resolveStyle(el, opts);
     if (opts.clearText) {
-      const idx = entry.text.indexOf(opts.clearText);
-      entry.clearRange = idx === -1 ? null : { start: idx, end: idx + opts.clearText.length };
+      entry.clearRange = findClearRange(entry.text, opts.clearText);
+      if (!entry.clearRange) {
+        console.warn('[PrivateText] clearText not found in text — leaving it fully blurred:', opts.clearText);
+      }
     } else {
       entry.clearRange = null;
     }
     draw(el, entry.text, entry.style, entry.clearRange);
+  }
+
+  // Forces a redraw of one already-protected element using its last-known
+  // text/style/clearRange. Safe to call any time — draw() itself no-ops if
+  // el has zero width (e.g. its page is still hidden).
+  function redraw(el){
+    const entry = registry.get(el);
+    if (entry) draw(el, entry.text, entry.style, entry.clearRange);
+  }
+
+  // Forces a redraw of every currently-protected element still attached to
+  // the page. Called on every page-show (see the router's showPage()) so
+  // blur reliably appears the moment a page becomes visible instead of
+  // depending solely on ResizeObserver to notice the display:none -> block
+  // transition — closes a timing gap that could otherwise leave a canvas
+  // undrawn on some phones/browsers.
+  function redrawAll(){
+    tracked.forEach(el => { if (el.isConnected) redraw(el); });
   }
 
   // Fully tears down protection on el: disconnects its ResizeObserver,
@@ -2506,11 +2594,12 @@ const PrivateText = (function(){
       if (entry.raf) cancelAnimationFrame(entry.raf);
       registry.delete(el);
     }
+    tracked.delete(el);
     const canvases = el.querySelectorAll(':scope > canvas.private-text-canvas-base, :scope > canvas.private-text-canvas-clear');
     canvases.forEach(c => c.remove());
   }
 
-  return { protect, unprotect };
+  return { protect, unprotect, redraw, redrawAll };
 })();
 
 
@@ -2953,6 +3042,12 @@ document.getElementById('signature').textContent = `coded late at night, with lo
     const destination = name === 'daily-intro' ? 'daily' : name;
     if(hubPages.includes(destination) && !deepPages.includes(destination)){ visited.add(destination); updateProgress(); }
     window.scrollTo(0,0);
+    // Canvases that were protected while their page was hidden (width 0)
+    // never got a real draw; force one now that the page is visible,
+    // instead of relying only on ResizeObserver to catch the change —
+    // this is what makes the blur reliably show up on every device,
+    // phones included, every single time.
+    requestAnimationFrame(() => PrivateText.redrawAll());
   }
 
   document.querySelectorAll('[data-goto]').forEach(btn => {
