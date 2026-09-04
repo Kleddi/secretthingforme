@@ -2399,9 +2399,25 @@ const PrivateText = (function(){
       if (style.align === 'center') x = (width - lineWidth) / 2;
       else if (style.align === 'right') x = width - margin - lineWidth;
 
+      // Group consecutive words that share the same blurred/clear state so
+      // ctx.filter is only set once per run, not once per word. iOS Safari's
+      // canvas filter implementation is known to behave unreliably when
+      // toggled many times within a single draw pass (long, heavily-blurred
+      // text — like the daily notes, which run far longer than any other
+      // protected field on this site — is exactly where that shows up);
+      // batching the filter changes avoids relying on that repeated toggling.
+      let runIsClear = null;
+      let prevFilter = null;
       tokens.forEach(tok => {
-        const isClear = clearRange && tok.start < clearRange.end && tok.end > clearRange.start;
-        ctx.filter = isClear ? 'none' : `blur(${style.blur}px)`;
+        const isClear = !!(clearRange && tok.start < clearRange.end && tok.end > clearRange.start);
+        if (isClear !== runIsClear) {
+          runIsClear = isClear;
+          const filterValue = isClear ? 'none' : `blur(${style.blur}px)`;
+          if (filterValue !== prevFilter) {
+            ctx.filter = filterValue;
+            prevFilter = filterValue;
+          }
+        }
         ctx.fillText(tok.word, x, y);
         x += ctx.measureText(tok.word + ' ').width;
       });
