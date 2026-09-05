@@ -2295,7 +2295,12 @@ async function hydrateConfig(){
   // runtime from revealed.json (see the dailyNotes() block below), which is
   // built by a scheduled job that only ever publishes messages whose date
   // has already arrived. Future messages are never sent to the browser.
-  tasks.push(Promise.all((CONFIG.dailyReveals || []).map(async r => ({ date: r.date, text: await unlock(r.text) }))).then(v => CONFIG.dailyReveals = v));
+  // occurrence is plain structural metadata (not sensitive text), so it's
+  // passed through untouched — only r.text goes through unlock(). This lets
+  // a single day have several dailyReveals entries (same date, different
+  // text and/or occurrence) so more than one phrase — or the same phrase
+  // appearing more than once — can each be targeted individually.
+  tasks.push(Promise.all((CONFIG.dailyReveals || []).map(async r => ({ date: r.date, text: await unlock(r.text), occurrence: r.occurrence }))).then(v => CONFIG.dailyReveals = v));
   tasks.push(Promise.all((CONFIG.bouquetMeanings || []).map(async m => ({ flower: await unlock(m.flower), meaning: await unlock(m.meaning) }))).then(v => CONFIG.bouquetMeanings = v));
   tasks.push(unlockAll(CONFIG.photoCaptions).then(v => CONFIG.photoCaptions = v));
   tasks.push(unlockAll(CONFIG.letters).then(v => CONFIG.letters = v));
@@ -2425,24 +2430,70 @@ const PrivateText = (function(){
   // between the day's note and its CONFIG.dailyReveals entry don't
   // silently leave the sentence blurred. Returns null (and lets the
   // caller warn) only if truly nothing matches.
-  function findClearRange(fullText, snippet){
+  // occurrence is 1-indexed: 1 = first match (default, same as before),
+  // 2 = second match, etc. Lets the same short phrase ("Stay quiet") be
+  // pointed at a specific instance when it appears more than once in the
+  // same day's note, instead of always landing on the first one.
+  function findClearRange(fullText, snippet, occurrence){
     if (!snippet) return null;
     const trimmed = snippet.trim();
     if (!trimmed) return null;
+    const n = Math.max(1, occurrence || 1);
 
-    const idx = fullText.indexOf(trimmed);
-    if (idx !== -1) return { start: idx, end: idx + trimmed.length };
+    // exact-match pass: walk forward through successive indexOf() hits
+    // until we've counted n of them
+    let idx = -1, from = 0, count = 0;
+    while (count < n) {
+      idx = fullText.indexOf(trimmed, from);
+      if (idx === -1) break;
+      count++;
+      from = idx + 1; // +1 (not trimmed.length) so overlapping matches still count
+    }
+    if (idx !== -1 && count === n) return { start: idx, end: idx + trimmed.length };
 
+    // fuzzy fallback pass, same nth-occurrence walk over the normalized text
     const { normalized: normFull, map } = buildNormalizedMap(fullText);
     const { normalized: normSnippet } = buildNormalizedMap(trimmed);
     if (!normSnippet) return null;
-    const normIdx = normFull.indexOf(normSnippet);
-    if (normIdx === -1) return null;
+    let normIdx = -1; from = 0; count = 0;
+    while (count < n) {
+      normIdx = normFull.indexOf(normSnippet, from);
+      if (normIdx === -1) break;
+      count++;
+      from = normIdx + 1;
+    }
+    if (normIdx === -1 || count !== n) return null;
     return { start: map[normIdx], end: map[normIdx + normSnippet.length - 1] + 1 };
   }
 
-  // clearRange, when given, is { start, end } absolute character offsets
-  // (into the original text string) that should render without blur.
+  // Resolves a list of reveal requests — each { text, occurrence? } — against
+  // one day's note into a de-duplicated, non-overlapping array of ranges.
+  // This is what makes multiple sharp phrases (different phrases, or the
+  // same phrase appearing more than once) possible within a single note.
+  // Entries that fail to match are skipped with a console warning rather
+  // than aborting the others — one bad entry shouldn't blank out the rest.
+  function findClearRanges(fullText, requests){
+    const ranges = [];
+    (requests || []).forEach(req => {
+      if (!req) return;
+      const snippet = typeof req === 'string' ? req : req.text;
+      const occurrence = typeof req === 'string' ? 1 : req.occurrence;
+      const range = findClearRange(fullText, snippet, occurrence);
+      if (!range) {
+        console.warn('[PrivateText] clearText not found in text — leaving it fully blurred:', snippet, occurrence ? `(occurrence ${occurrence})` : '');
+        return;
+      }
+      // skip exact duplicates / fully-contained overlaps so the same words
+      // don't get processed twice
+      const alreadyCovered = ranges.some(r => range.start >= r.start && range.end <= r.end);
+      if (!alreadyCovered) ranges.push(range);
+    });
+    return ranges;
+  }
+
+  // clearRanges, when given, is an array of { start, end } absolute
+  // character offsets (into the original text string) that should each
+  // render without blur.
   //
   // Renders onto TWO stacked canvases instead of toggling a canvas-context
   // filter word by word (that approach turned out to be unreliable on some
@@ -2453,13 +2504,14 @@ const PrivateText = (function(){
   //   - base canvas: draws only the words that should stay blurred (every
   //     word when there's no clear range; every word EXCEPT the clear-range
   //     words when there is one), blurred via el.style.filter.
-  //   - clear canvas: only drawn when a clearRange exists; transparent
+  //   - clear canvas: only drawn when clearRanges is non-empty; transparent
   //     everywhere except the clear words, and never blurred, so it sits
   //     sharp on top of the blurred base exactly where those words are.
   //     Because the base layer no longer paints those same words underneath
   //     it, there's nothing blurred behind the sharp text to bleed through
   //     as a halo/ghost around it.
-  function draw(el, text, style, clearRange){
+  function draw(el, text, style, clearRanges){
+    clearRanges = clearRanges || [];
     if (!text) return;
     const width = Math.round(el.clientWidth || el.getBoundingClientRect().width);
     if (!width) return; // page/section not visible yet — redrawn on next page-show or resize
@@ -2497,7 +2549,7 @@ const PrivateText = (function(){
     });
     baseCanvas.style.filter = `blur(${style.blur}px)`;
     baseCanvas.style.webkitFilter = `blur(${style.blur}px)`; // extra safety net for older WebKit builds
-    clearCanvas.style.display = clearRange ? 'block' : 'none';
+    clearCanvas.style.display = clearRanges.length ? 'block' : 'none';
 
     function paint(canvas, mode){ // mode: 'all' | 'nonClearOnly' | 'clearOnly'
       const ctx = canvas.getContext('2d');
@@ -2518,7 +2570,7 @@ const PrivateText = (function(){
         else if (style.align === 'right') x = width - margin - lineWidth;
 
         tokens.forEach(tok => {
-          const isClear = !!(clearRange && tok.start < clearRange.end && tok.end > clearRange.start);
+          const isClear = clearRanges.some(r => tok.start < r.end && tok.end > r.start);
           const advance = ctx.measureText(tok.word + ' ').width;
           const shouldDraw = mode === 'all' || (mode === 'nonClearOnly' && !isClear) || (mode === 'clearOnly' && isClear);
           if (shouldDraw) ctx.fillText(tok.word, x, y);
@@ -2531,8 +2583,8 @@ const PrivateText = (function(){
     // there's a clear range, its words are left out of the base layer
     // entirely — otherwise a blurred copy of that same word would sit
     // directly underneath the sharp overlay and show through as a halo.
-    paint(baseCanvas, clearRange ? 'nonClearOnly' : 'all');
-    if (clearRange) paint(clearCanvas, 'clearOnly'); // sharp overlay: only the clear words
+    paint(baseCanvas, clearRanges.length ? 'nonClearOnly' : 'all');
+    if (clearRanges.length) paint(clearCanvas, 'clearOnly'); // sharp overlay: only the clear words
   }
 
   // Replaces el's content with a blurred-pixel rendering of `text`.
@@ -2540,12 +2592,15 @@ const PrivateText = (function(){
   // it reuses the canvas + observer instead of stacking new ones.
   // opts.clearText: an exact (or near-exact — see findClearRange) substring
   // of `text` (e.g. one sentence) that should render sharp/unblurred within
-  // the otherwise-blurred paragraph.
+  // the otherwise-blurred paragraph. opts.clearTexts: array form for more
+  // than one such phrase — each entry is { text, occurrence? } (occurrence
+  // is 1-indexed, defaults to 1; use it to target a repeated phrase's 2nd,
+  // 3rd, etc. instance instead of always the first).
   function protect(el, text, opts = {}){
     if (!el) return;
     let entry = registry.get(el);
     if (!entry){
-      entry = { text: '', clearRange: null, style: null, raf: null };
+      entry = { text: '', clearRanges: [], style: null, raf: null };
       entry.ro = new ResizeObserver(() => {
         // redraw on every animation frame while the box is resizing (e.g.
         // the envelope/letter opening), throttled to one draw per frame so
@@ -2554,7 +2609,7 @@ const PrivateText = (function(){
         if (entry.raf) return;
         entry.raf = requestAnimationFrame(() => {
           entry.raf = null;
-          draw(el, entry.text, entry.style, entry.clearRange);
+          draw(el, entry.text, entry.style, entry.clearRanges);
         });
       });
       entry.ro.observe(el);
@@ -2563,23 +2618,21 @@ const PrivateText = (function(){
     }
     entry.text = text || '';
     entry.style = resolveStyle(el, opts);
-    if (opts.clearText) {
-      entry.clearRange = findClearRange(entry.text, opts.clearText);
-      if (!entry.clearRange) {
-        console.warn('[PrivateText] clearText not found in text — leaving it fully blurred:', opts.clearText);
-      }
-    } else {
-      entry.clearRange = null;
-    }
-    draw(el, entry.text, entry.style, entry.clearRange);
+    // opts.clearTexts: array of reveal requests, each { text, occurrence? }
+    // (or a plain string, treated as occurrence 1) — use this for more than
+    // one sharp phrase per note. opts.clearText: back-compat single-string
+    // form, equivalent to clearTexts: [{ text: opts.clearText }].
+    const requests = opts.clearTexts || (opts.clearText ? [{ text: opts.clearText }] : []);
+    entry.clearRanges = findClearRanges(entry.text, requests);
+    draw(el, entry.text, entry.style, entry.clearRanges);
   }
 
   // Forces a redraw of one already-protected element using its last-known
-  // text/style/clearRange. Safe to call any time — draw() itself no-ops if
+  // text/style/clearRanges. Safe to call any time — draw() itself no-ops if
   // el has zero width (e.g. its page is still hidden).
   function redraw(el){
     const entry = registry.get(el);
-    if (entry) draw(el, entry.text, entry.style, entry.clearRange);
+    if (entry) draw(el, entry.text, entry.style, entry.clearRanges);
   }
 
   // Forces a redraw of every currently-protected element still attached to
@@ -2718,10 +2771,12 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
     countEl.textContent = `page ${currentPage + 1} of ${totalDays}`;
     const noteText = CONFIG.dailyMessages[currentPage] || `Write your message for Day ${currentPage + 1} in the daily notes list.`;
     const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const reveal = (CONFIG.dailyReveals || []).find(r => r && r.date === isoDate);
-    // The note stays fully blurred as always; if this date has a reveal
-    // entry, that exact sentence renders sharp within the same canvas.
-    PrivateText.protect(messageEl, noteText, reveal ? { clearText: reveal.text } : {});
+    // A day can have more than one dailyReveals entry (same date, different
+    // text and/or occurrence) — every one of them gets applied, so several
+    // separate phrases (or repeated instances of the same phrase) can each
+    // render sharp within the same otherwise-blurred note.
+    const reveals = (CONFIG.dailyReveals || []).filter(r => r && r.date === isoDate);
+    PrivateText.protect(messageEl, noteText, reveals.length ? { clearTexts: reveals } : {});
     pageNumberEl.textContent = `Day ${currentPage + 1}`;
     pageTotalEl.textContent = `${currentPage + 1} of ${totalDays}`;
     previousBtn.disabled = currentPage === 0;
