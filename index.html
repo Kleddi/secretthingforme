@@ -2421,72 +2421,81 @@ const PrivateText = (function(){
     return { normalized: chars.join(''), map };
   }
 
-  // Finds `snippet` inside `fullText` and returns its character range.
-  // Tries an exact match first (fastest, and preserves the snippet's own
-  // punctuation/casing exactly). Falls back to a case-insensitive,
-  // curly-quote-normalized, whitespace-collapsed match — mapped back onto
-  // the ORIGINAL text's real character offsets — so small differences in
-  // capitalization, straight vs curly quotes, or a stray double space
-  // between the day's note and its CONFIG.dailyReveals entry don't
-  // silently leave the sentence blurred. Returns null (and lets the
-  // caller warn) only if truly nothing matches.
-  // occurrence is 1-indexed: 1 = first match (default, same as before),
-  // 2 = second match, etc. Lets the same short phrase ("Stay quiet") be
-  // pointed at a specific instance when it appears more than once in the
-  // same day's note, instead of always landing on the first one.
-  function findClearRange(fullText, snippet, occurrence){
-    if (!snippet) return null;
-    const trimmed = snippet.trim();
-    if (!trimmed) return null;
-    const n = Math.max(1, occurrence || 1);
+  // Finds every non-overlapping occurrence of `snippet` inside `fullText`
+  // and returns an array of its character ranges, in order. Tries an exact
+  // match pass first (fastest, preserves the snippet's own punctuation/
+  // casing exactly); if that finds nothing at all, falls back to a
+  // case-insensitive, curly-quote-normalized, whitespace-collapsed pass —
+  // mapped back onto the ORIGINAL text's real character offsets — so small
+  // differences in capitalization, straight vs curly quotes, or a stray
+  // double space don't silently leave the sentence blurred. The two passes
+  // are never mixed: whichever pass finds matches is the one used for all
+  // of them, so occurrence numbers stay consistent.
+  function findAllOccurrences(fullText, snippet){
+    const trimmed = (snippet || '').trim();
+    if (!trimmed) return [];
 
-    // exact-match pass: walk forward through successive indexOf() hits
-    // until we've counted n of them
-    let idx = -1, from = 0, count = 0;
-    while (count < n) {
-      idx = fullText.indexOf(trimmed, from);
-      if (idx === -1) break;
-      count++;
+    const exact = [];
+    let from = 0, idx;
+    while ((idx = fullText.indexOf(trimmed, from)) !== -1) {
+      exact.push({ start: idx, end: idx + trimmed.length });
       from = idx + 1; // +1 (not trimmed.length) so overlapping matches still count
     }
-    if (idx !== -1 && count === n) return { start: idx, end: idx + trimmed.length };
+    if (exact.length) return exact;
 
-    // fuzzy fallback pass, same nth-occurrence walk over the normalized text
     const { normalized: normFull, map } = buildNormalizedMap(fullText);
     const { normalized: normSnippet } = buildNormalizedMap(trimmed);
-    if (!normSnippet) return null;
-    let normIdx = -1; from = 0; count = 0;
-    while (count < n) {
-      normIdx = normFull.indexOf(normSnippet, from);
-      if (normIdx === -1) break;
-      count++;
-      from = normIdx + 1;
+    if (!normSnippet) return [];
+    const fuzzy = [];
+    let nfrom = 0, nidx;
+    while ((nidx = normFull.indexOf(normSnippet, nfrom)) !== -1) {
+      fuzzy.push({ start: map[nidx], end: map[nidx + normSnippet.length - 1] + 1 });
+      nfrom = nidx + 1;
     }
-    if (normIdx === -1 || count !== n) return null;
-    return { start: map[normIdx], end: map[normIdx + normSnippet.length - 1] + 1 };
+    return fuzzy;
+  }
+
+  // Turns a request's `occurrence` field into a concrete list of 1-indexed
+  // match numbers to reveal:
+  //   - omitted/undefined -> [1]              (first match only, the default)
+  //   - a number, e.g. 2   -> [2]              (just that one instance)
+  //   - an array, e.g. [1,3] -> [1, 3]         (exactly those instances)
+  //   - the string 'all'  -> every instance found, e.g. [1,2,3]
+  function resolveOccurrenceIndices(occurrence, totalMatches){
+    if (occurrence === 'all') return Array.from({ length: totalMatches }, (_, i) => i + 1);
+    if (Array.isArray(occurrence)) return occurrence;
+    return [occurrence || 1];
   }
 
   // Resolves a list of reveal requests — each { text, occurrence? } — against
-  // one day's note into a de-duplicated, non-overlapping array of ranges.
-  // This is what makes multiple sharp phrases (different phrases, or the
-  // same phrase appearing more than once) possible within a single note.
-  // Entries that fail to match are skipped with a console warning rather
-  // than aborting the others — one bad entry shouldn't blank out the rest.
+  // one day's note into a de-duplicated array of ranges. This is what makes
+  // multiple sharp phrases (different phrases, the same phrase appearing
+  // more than once, a chosen subset of its instances, or literally all of
+  // them) possible within a single note. Entries/instances that fail to
+  // match are skipped with a console warning rather than aborting the
+  // others — one bad entry shouldn't blank out the rest.
   function findClearRanges(fullText, requests){
     const ranges = [];
     (requests || []).forEach(req => {
       if (!req) return;
       const snippet = typeof req === 'string' ? req : req.text;
       const occurrence = typeof req === 'string' ? 1 : req.occurrence;
-      const range = findClearRange(fullText, snippet, occurrence);
-      if (!range) {
-        console.warn('[PrivateText] clearText not found in text — leaving it fully blurred:', snippet, occurrence ? `(occurrence ${occurrence})` : '');
+      const allMatches = findAllOccurrences(fullText, snippet);
+      if (!allMatches.length) {
+        console.warn('[PrivateText] clearText not found in text — leaving it fully blurred:', snippet);
         return;
       }
-      // skip exact duplicates / fully-contained overlaps so the same words
-      // don't get processed twice
-      const alreadyCovered = ranges.some(r => range.start >= r.start && range.end <= r.end);
-      if (!alreadyCovered) ranges.push(range);
+      resolveOccurrenceIndices(occurrence, allMatches.length).forEach(n => {
+        const range = allMatches[n - 1];
+        if (!range) {
+          console.warn('[PrivateText] requested occurrence not found — text has fewer matches than that:', snippet, `(occurrence ${n}, only ${allMatches.length} found)`);
+          return;
+        }
+        // skip exact duplicates / fully-contained overlaps so the same
+        // words don't get processed twice
+        const alreadyCovered = ranges.some(r => range.start >= r.start && range.end <= r.end);
+        if (!alreadyCovered) ranges.push(range);
+      });
     });
     return ranges;
   }
@@ -2620,7 +2629,11 @@ const PrivateText = (function(){
     entry.style = resolveStyle(el, opts);
     // opts.clearTexts: array of reveal requests, each { text, occurrence? }
     // (or a plain string, treated as occurrence 1) — use this for more than
-    // one sharp phrase per note. opts.clearText: back-compat single-string
+    // one sharp phrase per note. Each entry's `occurrence` controls which
+  // instance(s) of that phrase get revealed: omitted = first instance only,
+  // a number (e.g. 2) = just that instance, an array (e.g. [1,3]) = exactly
+  // those instances, or the string 'all' = every instance in the note.
+  // opts.clearText: back-compat single-string
     // form, equivalent to clearTexts: [{ text: opts.clearText }].
     const requests = opts.clearTexts || (opts.clearText ? [{ text: opts.clearText }] : []);
     entry.clearRanges = findClearRanges(entry.text, requests);
