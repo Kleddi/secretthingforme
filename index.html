@@ -2295,12 +2295,12 @@ async function hydrateConfig(){
   // runtime from revealed.json (see the dailyNotes() block below), which is
   // built by a scheduled job that only ever publishes messages whose date
   // has already arrived. Future messages are never sent to the browser.
-  // occurrence is plain structural metadata (not sensitive text), so it's
-  // passed through untouched — only r.text goes through unlock(). This lets
-  // a single day have several dailyReveals entries (same date, different
-  // text and/or occurrence) so more than one phrase — or the same phrase
-  // appearing more than once — can each be targeted individually.
-  tasks.push(Promise.all((CONFIG.dailyReveals || []).map(async r => ({ date: r.date, text: await unlock(r.text), occurrence: r.occurrence }))).then(v => CONFIG.dailyReveals = v));
+  // occurrence and revealAll are plain structural metadata (not sensitive
+  // text), so they're passed through untouched — only r.text goes through
+  // unlock(). This lets a single day have several dailyReveals entries
+  // (same date, different text/occurrence), or one entry marked revealAll
+  // to unblur the entire note instead of a specific phrase.
+  tasks.push(Promise.all((CONFIG.dailyReveals || []).map(async r => ({ date: r.date, text: await unlock(r.text), occurrence: r.occurrence, revealAll: r.revealAll }))).then(v => CONFIG.dailyReveals = v));
   tasks.push(Promise.all((CONFIG.bouquetMeanings || []).map(async m => ({ flower: await unlock(m.flower), meaning: await unlock(m.meaning) }))).then(v => CONFIG.bouquetMeanings = v));
   tasks.push(unlockAll(CONFIG.photoCaptions).then(v => CONFIG.photoCaptions = v));
   tasks.push(unlockAll(CONFIG.letters).then(v => CONFIG.letters = v));
@@ -2604,7 +2604,11 @@ const PrivateText = (function(){
   // the otherwise-blurred paragraph. opts.clearTexts: array form for more
   // than one such phrase — each entry is { text, occurrence? } (occurrence
   // is 1-indexed, defaults to 1; use it to target a repeated phrase's 2nd,
-  // 3rd, etc. instance instead of always the first).
+  // 3rd, etc. instance instead of always the first). opts.revealAll: true
+  // renders the ENTIRE text sharp/unblurred, ignoring clearText/clearTexts
+  // — a deliberate, explicit opt-out of blurring for this note, distinct
+  // from an accidentally-empty clearText (which fails safe and stays
+  // fully blurred instead of accidentally exposing everything).
   function protect(el, text, opts = {}){
     if (!el) return;
     let entry = registry.get(el);
@@ -2627,16 +2631,26 @@ const PrivateText = (function(){
     }
     entry.text = text || '';
     entry.style = resolveStyle(el, opts);
-    // opts.clearTexts: array of reveal requests, each { text, occurrence? }
-    // (or a plain string, treated as occurrence 1) — use this for more than
-    // one sharp phrase per note. Each entry's `occurrence` controls which
-  // instance(s) of that phrase get revealed: omitted = first instance only,
-  // a number (e.g. 2) = just that instance, an array (e.g. [1,3]) = exactly
-  // those instances, or the string 'all' = every instance in the note.
-  // opts.clearText: back-compat single-string
-    // form, equivalent to clearTexts: [{ text: opts.clearText }].
-    const requests = opts.clearTexts || (opts.clearText ? [{ text: opts.clearText }] : []);
-    entry.clearRanges = findClearRanges(entry.text, requests);
+    if (opts.revealAll) {
+      // Explicit, deliberate opt-out of blurring entirely for this note —
+      // one range spanning the whole string makes every token "clear" in
+      // paint()'s isClear check, so the base layer draws nothing and the
+      // sharp overlay draws everything. Takes priority over clearText/
+      // clearTexts on purpose: a day marked revealAll shouldn't also be
+      // trying to compute individual phrase matches.
+      entry.clearRanges = entry.text ? [{ start: 0, end: entry.text.length }] : [];
+    } else {
+      // opts.clearTexts: array of reveal requests, each { text, occurrence? }
+      // (or a plain string, treated as occurrence 1) — use this for more than
+      // one sharp phrase per note. Each entry's `occurrence` controls which
+      // instance(s) of that phrase get revealed: omitted = first instance only,
+      // a number (e.g. 2) = just that instance, an array (e.g. [1,3]) = exactly
+      // those instances, or the string 'all' = every instance in the note.
+      // opts.clearText: back-compat single-string form, equivalent to
+      // clearTexts: [{ text: opts.clearText }].
+      const requests = opts.clearTexts || (opts.clearText ? [{ text: opts.clearText }] : []);
+      entry.clearRanges = findClearRanges(entry.text, requests);
+    }
     draw(el, entry.text, entry.style, entry.clearRanges);
   }
 
@@ -2789,7 +2803,12 @@ document.getElementById('dailyIntroContinue').textContent = CONFIG.dailyIntro.bu
     // separate phrases (or repeated instances of the same phrase) can each
     // render sharp within the same otherwise-blurred note.
     const reveals = (CONFIG.dailyReveals || []).filter(r => r && r.date === isoDate);
-    PrivateText.protect(messageEl, noteText, reveals.length ? { clearTexts: reveals } : {});
+    // A dailyReveals entry with "revealAll": true unblurs the ENTIRE note
+    // for that date instead of a specific phrase — it wins over any other
+    // entries for the same date (a day marked fully revealed shouldn't
+    // also be trying to compute individual phrase matches).
+    const revealAll = reveals.some(r => r && r.revealAll === true);
+    PrivateText.protect(messageEl, noteText, revealAll ? { revealAll: true } : (reveals.length ? { clearTexts: reveals } : {}));
     pageNumberEl.textContent = `Day ${currentPage + 1}`;
     pageTotalEl.textContent = `${currentPage + 1} of ${totalDays}`;
     previousBtn.disabled = currentPage === 0;
