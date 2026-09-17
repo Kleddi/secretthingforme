@@ -962,6 +962,33 @@
   .tile::after{ content:'✦'; position:absolute; top:11px; right:12px; width:20px; height:20px; display:grid; place-items:center; border-radius:50%; background:rgba(6,13,22,.82); border:1px solid rgba(102,179,255,.54); color:var(--accent-light); font-size:.85rem; font-weight:600; opacity:0; transform:scale(.55) rotate(-20deg); transition:opacity .25s ease,transform .3s cubic-bezier(.2,.9,.2,1); }
   .tile.is-visited::after{ opacity:1; transform:scale(1) rotate(0); }
   .tile.is-visited .icon{ box-shadow:0 0 0 5px rgba(0,127,255,.10),0 8px 20px rgba(0,88,191,.34),inset 0 1px 0 rgba(255,255,255,.28); }
+
+  /* ---------- museum tile: date-locked until CONFIG.museumUnlockDate ---------- */
+  .tile-lock-badge{
+    display:none; position:absolute; top:11px; right:12px; width:24px; height:24px; z-index:2;
+    place-items:center; border-radius:50%; background:rgba(6,13,22,.85);
+    border:1px solid rgba(102,179,255,.5); color:var(--accent-light);
+    box-shadow:0 6px 14px rgba(0,8,20,.35);
+  }
+  .tile-lock-badge svg{ width:13px; height:13px; stroke:currentColor; fill:none; }
+  .tile.locked{ cursor:not-allowed; }
+  .tile.locked .tile-lock-badge{ display:grid; }
+  .tile.locked .icon{ filter:grayscale(.7) brightness(.8); }
+  .tile.locked .label,.tile.locked .sub{ opacity:.62; }
+  .tile.locked:hover,.tile.locked:focus-visible{ transform:none; border-color:rgba(188,196,204,.16); }
+  .tile.locked.shake{ animation:lockShake .42s ease; }
+  .museum-toast{
+    position:fixed; left:50%; bottom:clamp(22px,6vh,52px); z-index:260;
+    transform:translate(-50%,14px); opacity:0; pointer-events:none;
+    max-width:min(88vw,360px); padding:13px 18px; text-align:center; border-radius:14px;
+    background:linear-gradient(155deg,rgba(20,42,64,.96),rgba(6,13,22,.97));
+    border:1px solid rgba(102,179,255,.32); box-shadow:0 18px 44px rgba(0,8,20,.5),inset 0 1px 0 rgba(255,255,255,.05);
+    color:var(--text-soft); font-size:.86rem; line-height:1.45;
+    transition:opacity .32s ease, transform .32s ease;
+  }
+  .museum-toast.show{ opacity:1; transform:translate(-50%,0); }
+  .museum-toast strong{ color:var(--accent-light); font-weight:500; }
+  @media (prefers-reduced-motion: reduce){ .tile.locked.shake{ animation:none; } }
   .heading{ position:relative; padding-bottom:14px; }
   .heading::after{ content:''; position:absolute; left:0; bottom:0; width:42px; height:1px; border-radius:99px; background:rgba(188,196,204,.55); }
   .card{ transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease; }
@@ -1229,10 +1256,13 @@
         <span class="label">One last thing</span>
         <span class="sub">a note for today</span>
       </button>
-      <button class="tile" id="museumTile" type="">
+      <button class="tile" id="museumTile" type="button">
         <span class="icon"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M3 21h18"/><path d="M4 21V10M20 21V10"/><path d="M2 10l10-6 10 6"/><path d="M9 21v-6h6v6"/></svg></span>
         <span class="label">The museum</span>
-        <span class="sub">a little gallery, just for you</span>
+        <span class="sub" id="museumSub">a little gallery, just for you</span>
+        <span class="tile-lock-badge" id="museumLockBadge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </span>
       </button>
     </div>
 
@@ -1500,6 +1530,12 @@ const CONFIG = {
   },
   dailyStartDate: "2026-07-30",
   dailyEndDate: "2026-11-20",
+
+  // MUSEUM LOCK — the museum tile on the hub stays locked (greyed out,
+  // with a lock badge) until this date. Set it to "" to leave the
+  // museum unlocked always. Uses the visitor's local time at midnight
+  // on this date, e.g. "2026-12-25" unlocks starting Dec 25.
+  museumUnlockDate: "2026-12-25",
   dailyMessages: [],  // populated from revealed.json (day-gated + encrypted) at runtime
 
   // dailyReveals: which phrase(s) render sharp within a specific day's
@@ -2980,12 +3016,61 @@ initScratch('bouquetFrame', 'bouquetCanvas');
   const overlay = document.getElementById('museumOverlay');
   const frame   = document.getElementById('museumFrame');
   const closeBtn= document.getElementById('museumClose');
+  const sub     = document.getElementById('museumSub');
   if (!tile || !overlay || !frame) return;
 
   const SRC = 'museum.html';
+  const ORIGINAL_SUB = sub ? sub.textContent : '';
   let loaded = false;
 
+  // ---- date lock ----
+  function unlockDate(){
+    if (!CONFIG.museumUnlockDate) return null;
+    const [y, m, d] = CONFIG.museumUnlockDate.split('-').map(Number);
+    return new Date(y, m - 1, d); // local midnight on that date
+  }
+  function isLocked(){
+    const u = unlockDate();
+    return !!u && new Date() < u;
+  }
+  function formattedUnlockDate(){
+    const u = unlockDate();
+    return u ? u.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  }
+  function toast(message){
+    let el = document.getElementById('museumToast');
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'museumToast';
+      el.className = 'museum-toast';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    el.textContent = message;
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+  function refreshLockState(){
+    const locked = isLocked();
+    tile.classList.toggle('locked', locked);
+    tile.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    if (sub) sub.textContent = locked ? `opens ${formattedUnlockDate()}` : ORIGINAL_SUB;
+    return locked;
+  }
+  refreshLockState();
+  // Re-check periodically so it unlocks live if the date passes while the
+  // page is left open, without needing a refresh.
+  setInterval(refreshLockState, 30000);
+
   function open(){
+    if (refreshLockState()){
+      tile.classList.remove('shake');
+      void tile.offsetWidth; // restart the shake animation
+      tile.classList.add('shake');
+      toast(`This one opens on ${formattedUnlockDate()}.`);
+      return;
+    }
     // Lazy-load on first open only; afterwards the iframe keeps its state
     // (scroll position, which song was playing) between visits.
     if (!loaded){ frame.src = SRC; loaded = true; }
