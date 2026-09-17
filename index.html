@@ -1694,9 +1694,8 @@ const CONFIG = {
   // instead of a word for that envelope.
   letterWords: [
     "birthday",
-    "...",
-    "sorry",
-    "him."
+    "again",
+    "sorry"
   ],
 
 
@@ -2806,7 +2805,7 @@ document.getElementById('signature').textContent = `coded late at night, with lo
       : `<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-8.8C.7 8.6 2 5 5.4 5 7.6 5 9.5 6.3 12 9c2.5-2.7 4.4-4 6.6-4C22 5 23.3 8.6 21.5 12.2 19 16.4 12 21 12 21z"/></svg>`;
     card.innerHTML = `
       <div class="envelope">
-        <div class="letter-paper" tabindex="0" aria-label="Letter content. Scroll to read more."><button class="letter-close" type="button" aria-label="Close letter">×</button></div>
+        <div class="letter-paper" tabindex="0" aria-label="Letter content. Scroll to read more."><button class="letter-close" type="button" aria-label="Close letter">×</button><div class="letter-text"></div></div>
         <div class="env-flap"></div>
         <div class="env-back"></div>
         <div class="seal${word ? ' has-word' : ''}">
@@ -2816,9 +2815,20 @@ document.getElementById('signature').textContent = `coded late at night, with lo
 
     // Only the letter BODY is protected. The one-word hint on the seal
     // (CONFIG.letterWords) stays ordinary readable text on purpose.
+    //
+    // Protects the inner .letter-text div, NOT .letter-paper itself —
+    // protect() clears out whatever it's given before drawing into it, and
+    // .letter-paper also holds the "×" close button as a sibling, which
+    // must survive. Font/lineHeight are passed explicitly because they're
+    // normally set via the ".letter-paper p" CSS rule (Caveat, 1.35rem,
+    // 1.55 line-height) — a rule that only ever matched <p> tags, never
+    // .letter-paper itself, so resolveStyle()'s computed-style read would
+    // otherwise fall back to a much smaller default font.
     const letterPaper = card.querySelector('.letter-paper');
-
-    PrivateText.protect(letterPaper, text, { blur: 6 });
+    const letterText = card.querySelector('.letter-text');
+    // 1.35rem @ the site's 16px root = 21.6px; canvas's font property needs
+    // an absolute unit, so this is spelled out in px rather than rem.
+    PrivateText.protect(letterText, text, { blur: 6, font: "21.6px 'Caveat', cursive", lineHeight: 21.6 * 1.55, color: '#1b3550' });
 
     const env = card.querySelector('.envelope');
     const flap = card.querySelector('.env-flap');
