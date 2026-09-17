@@ -36,6 +36,7 @@
 
     /* entrance */
     #curtain{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 50% 38%,rgba(0,127,255,.16),transparent 28%),rgba(6,13,22,.98);transition:opacity .8s ease,visibility .8s step-end}
+    #museumLocked{position:fixed;inset:0;z-index:41;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 50% 38%,rgba(0,127,255,.16),transparent 28%),rgba(6,13,22,.98)}
     #curtain.open{opacity:0;visibility:hidden}
     .curtain-card{width:min(100%,540px);text-align:center;padding:clamp(34px,7vw,62px) clamp(25px,6vw,54px);border:1px solid rgba(102,179,255,.32);border-radius:28px;background:linear-gradient(145deg,rgba(20,42,64,.88),rgba(6,13,22,.93));box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05);position:relative;overflow:hidden}
     .curtain-card::before{content:'';position:absolute;inset:14px;border:1px solid rgba(102,179,255,.09);border-radius:19px;pointer-events:none}
@@ -106,6 +107,10 @@
        the main site — nothing readable sits in the DOM until it's decrypted */
     .museum-private{ user-select:none; -webkit-touch-callout:none; }
     canvas.private-text-canvas-base{ display:inline-block; vertical-align:top; pointer-events:none; user-select:none; -webkit-touch-callout:none; }
+    /* Sitewide reveal-everything switch, relayed here from the parent page
+       via postMessage (this document can't see the parent's own CSS class
+       across the iframe boundary, so it needs its own copy of this rule). */
+    body.reveal-everything canvas.private-text-canvas-base{ filter: none !important; }
     canvas.private-text-canvas-clear{ display:none; position:absolute; top:0; left:0; pointer-events:none; user-select:none; }
     .museum-back{ position:fixed; left:14px; bottom:14px; z-index:30; display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border-radius:999px; cursor:pointer; color:var(--gray-light); font-size:.8rem; border:1px solid rgba(102,179,255,.4); background:rgba(10,21,32,.85); backdrop-filter:blur(8px); }
     .museum-back:hover{ border-color:var(--azure-light); color:var(--paper); }
@@ -122,6 +127,15 @@
       <h1>A tiny museum<br>for you.</h1>
       <p>Not every feeling belongs in a frame. But these little things did not want to be forgotten.</p>
       <button class="open-button" id="openMuseum">Open the doors <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+    </div>
+  </section>
+
+  <section id="museumLocked" aria-label="This exhibit is not open yet" hidden>
+    <div class="curtain-card">
+      <div class="museum-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zM7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <p class="micro">Not open yet</p>
+      <h1>Come back soon.</h1>
+      <p id="museumLockedCopy">This little museum isn't ready to open just yet.</p>
     </div>
   </section>
 
@@ -622,11 +636,32 @@ const PrivateText = (function(){
 
 
 
-    // Populated from museum-content.json before anything renders.
-    const CONFIG = { songs: [], reasons: [], moments: [], gallery: [], texts: {} };
+    // Song title/artist/src aren't sensitive — same convention as the main
+    // site's CONFIG.songs — so this stays plain, hardcoded data here
+    // rather than round-tripping through museum-content.json.
+    const CONFIG = {
+      songs:[
+        {title:'urs', artist:'a song that feels like late nights', src:'music/urs.mp3'},
+        {title:'A Couple Minutes', artist:'for conversations that go too fast', src:'music/Olivia Dean - A Couple Minutes (Lyric Video).mp3'},
+        {title:'Araw-Araw', artist:'for the days worth choosing again', src:'music/Ben&Ben - Araw-Araw  Official Lyric Video.mp3'}
+      ],
+      reasons: [], moments: [], gallery: [], texts: {}, locked: false, unlockDate: null
+    };
 
     // welcome
     document.getElementById('openMuseum').addEventListener('click', () => document.getElementById('curtain').classList.add('open'));
+
+    function showLockedScreen(){
+      document.getElementById('curtain').hidden = true;
+      const locked = document.getElementById('museumLocked');
+      locked.hidden = false;
+      if (CONFIG.unlockDate) {
+        const [y, mo, d] = CONFIG.unlockDate.split('-').map(Number);
+        const dt = new Date(y, mo - 1, d);
+        const formatted = dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        document.getElementById('museumLockedCopy').textContent = `This little museum opens on ${formatted}. Come back then.`;
+      }
+    }
 
     // star field
     const canvas = document.getElementById('stars'), ctx = canvas.getContext('2d'); let points=[];
@@ -667,6 +702,13 @@ const PrivateText = (function(){
         const res = await fetch('museum-content.json', { cache: 'no-store' });
         if (res.ok) {
           const c = await res.json();
+          CONFIG.locked = !!c.locked;
+          CONFIG.unlockDate = c.unlockDate || null;
+          if (CONFIG.locked) {
+            // Nothing else is even present in the file while locked — see
+            // the check right after this block.
+            return showLockedScreen();
+          }
           CONFIG.texts = {
             heroIntro:   await unlock(c.heroIntro),
             momentsCopy: await unlock(c.momentsCopy),
@@ -677,7 +719,6 @@ const PrivateText = (function(){
           };
           CONFIG.moments  = await Promise.all((c.moments  || []).map(async x => ({ index: x.index, title: x.title, body: await unlock(x.body) })));
           CONFIG.reasons  = await Promise.all((c.reasons  || []).map(async x => ({ label: x.label, reason: await unlock(x.reason) })));
-          CONFIG.songs    = (c.songs || []);
           CONFIG.gallery  = (c.gallery || []);
         }
       } catch (err) {
@@ -733,11 +774,18 @@ const PrivateText = (function(){
       if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'museum:close' }, '*');
       else history.length > 1 ? history.back() : (location.href = 'index.html');
     });
-    // The parent pauses our audio when the overlay is closed.
+    // The parent pauses our audio when the overlay is closed, and relays
+    // the sitewide reveal-everything switch (a CSS class toggle here is
+    // all that's needed — see the body.reveal-everything rule above — it
+    // works whichever order this arrives relative to bootMuseum()'s own
+    // rendering, since the canvas pixels already contain the real text).
     addEventListener('message', e => {
-      if (e.data && e.data.type === 'museum:pause') {
+      if (!e.data) return;
+      if (e.data.type === 'museum:pause') {
         const a = document.getElementById('audio');
         if (a && !a.paused) a.pause();
+      } else if (e.data.type === 'museum:reveal') {
+        document.body.classList.toggle('reveal-everything', !!e.data.value);
       }
     });
   </script>
