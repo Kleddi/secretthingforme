@@ -412,14 +412,17 @@
   }
 
   .tiles{
-    display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:18px;
+    /* Flexbox instead of Grid + a :last-child hack: the old approach only
+       centered correctly when exactly one tile was left over in the final
+       row (works for 7 tiles, breaks for 8 — as adding the museum tile
+       just did, leaving two tiles pushed left with an empty gap). This
+       auto-centers ANY incomplete last row, for any tile count, so it
+       won't need revisiting the next time a tile is added or removed. */
+    display:flex; flex-wrap:wrap; justify-content:center; gap:18px;
     width:100%; max-width:760px;
   }
-  .tiles .tile:last-child{ grid-column:2; }
-  @media (max-width:680px){ .tiles{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
-  @media (max-width:680px){
-    .tiles .tile:last-child{ grid-column:1 / -1; width:calc((100% - 18px) / 2); justify-self:center; }
-  }
+  .tiles .tile{ flex: 0 1 calc((100% - 36px)/3); min-width:0; }
+  @media (max-width:680px){ .tiles .tile{ flex-basis: calc((100% - 18px)/2); } }
 
   .tile{
     background: linear-gradient(160deg, var(--bg-panel), var(--bg-panel-soft));
@@ -894,7 +897,6 @@
   .tile .icon{ position:relative; background:linear-gradient(135deg,var(--accent-deep),var(--accent) 56%,var(--accent-light)); box-shadow:0 7px 18px rgba(0,88,191,.35),inset 0 1px 0 rgba(255,255,255,.28); }
   .tile .label{ position:relative; font-size:1rem; letter-spacing:.01em; }
   .tile .sub{ position:relative; color:#aeb8c3; }
-  .tile:nth-child(2) .icon,.tile:nth-child(5) .icon{ background:linear-gradient(135deg,#4a6378,#8E8E8E); }
   .tile:nth-child(3) .icon,.tile:nth-child(6) .icon{ background:linear-gradient(135deg,#0058bf,#66b3ff); }
   .hub-progress{ width:100%; max-width:760px; margin:0 auto 20px; padding:13px 16px 14px; border:1px solid rgba(188,196,204,.16); border-radius:16px; background:rgba(6,13,22,.38); text-align:left; backdrop-filter:blur(10px); }
   .hub-progress-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--text-dim); font-size:.76rem; letter-spacing:.03em; }
@@ -2383,8 +2385,8 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
     btn.className = 'reason-item flower-meaning';
     btn.setAttribute('aria-expanded', 'false');
     btn.innerHTML = `<span class="reason-num">${index + 1}</span><span class="reason-body"><span class="flower-name"></span><span class="reason-prompt">tap to reveal its meaning</span><p class="reason-text"></p></span>`;
-    PrivateText.protect(btn.querySelector('.flower-name'), item.flower, { color: '#f6f1e9' });
-    PrivateText.protect(btn.querySelector('.reason-text'), item.meaning, { color: '#f6f1e9' });
+    PrivateText.protect(btn.querySelector('.flower-name'), item.flower);
+    PrivateText.protect(btn.querySelector('.reason-text'), item.meaning);
     btn.addEventListener('click', () => {
       if (btn.classList.contains('revealed')) return;
       btn.classList.add('revealed');
