@@ -636,11 +636,12 @@ const PrivateText = (function(){
 
 
 
-    // Song title/artist/src aren't sensitive — same convention as the main
-    // site's CONFIG.songs — so this stays plain, hardcoded data here
-    // rather than round-tripping through museum-content.json.
+    // Song title/artist/src aren't sensitive — same convention as the
+    // gallery's src/title — so they're populated from museum-content.json
+    // as PLAIN fields, not encrypted, in bootMuseum() below. This default
+    // is only a fallback in case that fetch fails entirely.
     const CONFIG = {
-      songs:[
+      songs: [
         {title:'urs', artist:'a song that feels like late nights', src:'music/urs.mp3'},
         {title:'A Couple Minutes', artist:'for conversations that go too fast', src:'music/Olivia Dean - A Couple Minutes (Lyric Video).mp3'},
         {title:'Araw-Araw', artist:'for the days worth choosing again', src:'music/Ben&Ben - Araw-Araw  Official Lyric Video.mp3'}
@@ -720,6 +721,11 @@ const PrivateText = (function(){
           CONFIG.moments  = await Promise.all((c.moments  || []).map(async x => ({ index: x.index, title: x.title, body: await unlock(x.body) })));
           CONFIG.reasons  = await Promise.all((c.reasons  || []).map(async x => ({ label: x.label, reason: await unlock(x.reason) })));
           CONFIG.gallery  = (c.gallery || []);
+          // Plain, not encrypted — same convention as gallery's src/title.
+          // Falls back to the hardcoded default above if this key is
+          // missing entirely (an older museum-content.json, say), rather
+          // than silently leaving the sound exhibit empty.
+          if (Array.isArray(c.songs) && c.songs.length) CONFIG.songs = c.songs;
         }
       } catch (err) {
         console.warn('Could not load museum-content.json — museum text will show empty.', err);
