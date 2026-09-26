@@ -693,7 +693,7 @@ const PrivateText = (function(){
 
     // constellation
     const reasonNumber=document.getElementById('reasonNumber'),reasonTitle=document.getElementById('reasonTitle'),reasonText=document.getElementById('reasonText');
-    function showReason(index){const r=CONFIG.reasons[index];if(!r)return;document.querySelectorAll('.reason-star').forEach(star=>star.classList.toggle('active',Number(star.dataset.reason)===index));reasonNumber.textContent=`STAR ${String(index+1).padStart(2,'0')} / ${String(CONFIG.reasons.length).padStart(2,'0')}`;PrivateText.protect(reasonTitle,r.label);PrivateText.protect(reasonText,r.reason);}
+    function showReason(index){const r=CONFIG.reasons[index];if(!r)return;document.querySelectorAll('.reason-star').forEach(star=>star.classList.toggle('active',Number(star.dataset.reason)===index));reasonNumber.textContent=`STAR ${String(index+1).padStart(2,'0')} / ${String(CONFIG.reasons.length).padStart(2,'0')}`;PrivateText.protect(reasonTitle,r.label,{revealAll:true});PrivateText.protect(reasonText,r.reason,{revealAll:true});}
     document.querySelectorAll('.reason-star').forEach(button=>button.addEventListener('click',()=>showReason(Number(button.dataset.reason))));
 
     // audio listening room
@@ -742,11 +742,11 @@ const PrivateText = (function(){
       }
 
       const t = CONFIG.texts || {};
-      PrivateText.protect(document.getElementById('mHeroIntro'),   t.heroIntro   || '');
-      PrivateText.protect(document.getElementById('mMomentsCopy'), t.momentsCopy || '');
-      PrivateText.protect(document.getElementById('mSoundCopy'),   t.soundCopy   || '');
-      PrivateText.protect(document.getElementById('mLetterBody'),  t.letterBody  || '');
-      PrivateText.protect(document.getElementById('mClosing'),     t.closing     || '');
+      PrivateText.protect(document.getElementById('mHeroIntro'),   t.heroIntro   || '', { revealAll: true });
+      PrivateText.protect(document.getElementById('mMomentsCopy'), t.momentsCopy || '', { revealAll: true });
+      PrivateText.protect(document.getElementById('mSoundCopy'),   t.soundCopy   || '', { revealAll: true });
+      PrivateText.protect(document.getElementById('mLetterBody'),  t.letterBody  || '', { revealAll: true });
+      PrivateText.protect(document.getElementById('mClosing'),     t.closing     || '', { revealAll: true });
 
       // timeline
       const tl = document.querySelector('.timeline');
@@ -758,8 +758,8 @@ const PrivateText = (function(){
           art.innerHTML = `<span class="moment-index"></span><h3 class="museum-private"></h3><p class="museum-private"></p><span class="star">✦</span>`;
           art.querySelector('.moment-index').textContent = mo.index || '';
           tl.appendChild(art);
-          PrivateText.protect(art.querySelector('h3'), mo.title || '');
-          PrivateText.protect(art.querySelector('p'), mo.body || '');
+          PrivateText.protect(art.querySelector('h3'), mo.title || '', { revealAll: true });
+          PrivateText.protect(art.querySelector('p'), mo.body || '', { revealAll: true });
         });
       }
 
