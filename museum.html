@@ -37,6 +37,7 @@
     /* entrance */
     #curtain{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 50% 38%,rgba(0,127,255,.16),transparent 28%),rgba(6,13,22,.98);transition:opacity .8s ease,visibility .8s step-end}
     #museumLocked{position:fixed;inset:0;z-index:41;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 50% 38%,rgba(0,127,255,.16),transparent 28%),rgba(6,13,22,.98)}
+    #museumLocked[hidden]{display:none}
     #curtain.open{opacity:0;visibility:hidden}
     .curtain-card{width:min(100%,540px);text-align:center;padding:clamp(34px,7vw,62px) clamp(25px,6vw,54px);border:1px solid rgba(102,179,255,.32);border-radius:28px;background:linear-gradient(145deg,rgba(20,42,64,.88),rgba(6,13,22,.93));box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05);position:relative;overflow:hidden}
     .curtain-card::before{content:'';position:absolute;inset:14px;border:1px solid rgba(102,179,255,.09);border-radius:19px;pointer-events:none}
