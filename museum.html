@@ -118,6 +118,15 @@
   </style>
 </head>
 <body>
+  <!-- Placed here, before the <script> block below, so it already exists in
+       the DOM by the time the script runs and attaches its click listener.
+       It used to sit at the very end of <body> (after the script), which
+       meant document.getElementById('museumBack') returned null and threw,
+       crashing the entire script before it could render anything — this is
+       exactly what caused the museum to appear stuck on the locked screen
+       even when the fetched data was correctly unlocked. -->
+  <button class="museum-back" id="museumBack" type="button"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> back to the site</button>
+
   <div id="sky"><canvas id="stars"></canvas></div>
 
   <section id="curtain" aria-label="Welcome">
@@ -795,6 +804,5 @@ const PrivateText = (function(){
       }
     });
   </script>
-  <button class="museum-back" id="museumBack" type="button"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> back to the site</button>
 </body>
 </html>
