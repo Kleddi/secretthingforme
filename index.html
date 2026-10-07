@@ -23,9 +23,8 @@
                            of what's inside, e.g. "birthday".
                            Leave an entry as "" to show the
                            original circled heart instead of a word)
-    - photoUrls          (paths/URLs to four photos of you two)
-    - bouquetUrl         (path/URL to a real bouquet photo —
-                           leave empty to keep the illustration)
+    - photoUrls/photoAlts (paths/URLs and descriptions for four photos)
+    - bouquetMedia       (a bouquet photo or video, caption, and optional video poster)
     - togetherSince      ("YYYY-MM-DD" — powers the day counter)
     - yourName           (signature)
 
@@ -116,75 +115,6 @@
     .petal, .star, .hub-fireflies i{ animation: none !important; }
     html{ scroll-behavior:auto; }
   }
-
-  /* ---------- welcome lock: keeps the whole little world a surprise ---------- */
-  #welcome-lock{
-    position:fixed; inset:0; z-index:200; overflow:hidden;
-    display:grid; place-items:center; padding:24px;
-    background:
-      radial-gradient(circle at 18% 18%, rgba(102,179,255,.16), transparent 26%),
-      radial-gradient(circle at 83% 80%, rgba(0,127,255,.13), transparent 30%),
-      linear-gradient(145deg, rgba(6,13,22,.985), rgba(10,21,32,.98) 54%, rgba(15,31,48,.99));
-    transition: opacity .75s ease, visibility .75s step-end;
-  }
-  #welcome-lock::before{
-    content:''; position:absolute; inset:0; pointer-events:none; opacity:.72;
-    background-image:
-      radial-gradient(circle at 11% 24%, var(--text-soft) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 27% 70%, var(--accent-light) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 43% 13%, var(--text-soft) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 64% 37%, var(--accent-light) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 78% 16%, var(--text-soft) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 91% 68%, var(--accent-light) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 8% 86%, var(--text-soft) 0 1px, transparent 1.8px);
-  }
-  #welcome-lock::after{
-    content:''; position:absolute; width:min(86vw, 650px); aspect-ratio:1; border-radius:50%;
-    border:1px solid rgba(102,179,255,.08); box-shadow:0 0 0 52px rgba(102,179,255,.025), 0 0 90px rgba(0,127,255,.12);
-    animation: lockBreathe 5s ease-in-out infinite; pointer-events:none;
-  }
-  #welcome-lock.unlocking{ opacity:0; visibility:hidden; }
-  @keyframes lockBreathe{ 50%{ transform:scale(1.07); opacity:.65; } }
-  .lock-card{
-    width:min(100%, 395px); position:relative; z-index:1; text-align:center;
-    padding:clamp(27px, 5vw, 38px); border:1px solid rgba(102,179,255,.28); border-radius:26px;
-    background:linear-gradient(155deg, rgba(20,42,64,.86), rgba(15,31,48,.9) 52%, rgba(6,13,22,.94));
-    box-shadow:0 26px 75px rgba(0,0,0,.47), inset 0 1px 0 rgba(255,255,255,.05);
-    backdrop-filter:blur(16px);
-  }
-  .lock-crest{
-    width:55px; height:55px; margin:0 auto 18px; border-radius:50%; display:grid; place-items:center;
-    color:var(--text-soft); background:linear-gradient(135deg, var(--accent-deep), var(--accent));
-    border:1px solid rgba(102,179,255,.65); box-shadow:0 0 0 7px rgba(0,127,255,.11), 0 10px 24px rgba(0,60,135,.36);
-  }
-  .lock-crest svg{ width:24px; height:24px; }
-  .lock-kicker{ display:block; color:var(--accent-light); font:1.3rem 'Caveat', cursive; margin-bottom:1px; }
-  .lock-card h2{ font-size:clamp(1.55rem, 5vw, 2rem); font-style:italic; }
-  .lock-card p{ margin:7px auto 23px; color:var(--text-dim); font-size:.88rem; line-height:1.55; }
-  .lock-dots{ display:flex; justify-content:center; gap:15px; margin-bottom:23px; }
-  .lock-dot{
-    width:11px; height:11px; border-radius:50%; border:1.5px solid var(--text-dim); transition:.17s ease;
-    box-shadow:0 0 0 transparent;
-  }
-  .lock-dot.filled{ background:var(--accent-light); border-color:var(--accent-light); box-shadow:0 0 11px rgba(102,179,255,.7); transform:scale(1.12); }
-  .lock-dots.error{ animation:lockShake .42s ease; }
-  .lock-dots.error .lock-dot{ background:#e7778d; border-color:#e7778d; box-shadow:0 0 10px rgba(231,119,141,.4); }
-  @keyframes lockShake{ 20%{transform:translateX(-8px)} 40%{transform:translateX(7px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(3px)} }
-  .lock-keypad{ display:grid; grid-template-columns:repeat(3, 62px); justify-content:center; gap:10px; }
-  .lock-key{
-    width:62px; aspect-ratio:1; display:grid; place-items:center; border:1px solid var(--line); border-radius:18px;
-    color:var(--text-soft); background:rgba(6,13,22,.33); cursor:pointer; font:500 1.1rem 'Outfit', sans-serif;
-    transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease;
-  }
-  .lock-key:hover{ background:rgba(0,127,255,.16); border-color:rgba(102,179,255,.52); }
-  .lock-key:active{ transform:scale(.91); background:rgba(0,127,255,.3); }
-  .lock-key:focus-visible{ outline:2px solid var(--accent-light); outline-offset:3px; }
-  .lock-key.blank{ visibility:hidden; pointer-events:none; }
-  .lock-key.delete{ color:var(--text-dim); }
-  .lock-key.delete svg{ width:20px; height:20px; }
-  .lock-hint{ margin:20px 0 0; color:var(--gray-light); font:1rem 'Caveat', cursive; opacity:.85; }
-  @media (max-width:420px){ .lock-card{ padding:26px 21px; border-radius:22px; } .lock-keypad{ grid-template-columns:repeat(3, 58px); } .lock-key{ width:58px; border-radius:16px; } }
-  @media (prefers-reduced-motion: reduce){ #welcome-lock::after{ animation:none; } }
 
   /* ---------- welcome lock: keeps the whole little world a surprise ---------- */
   #welcome-lock{
@@ -763,22 +693,65 @@
   }
   .reveal-under .placeholder{ text-align:center; color: var(--text-dim); padding:20px; }
   .reveal-under .placeholder svg{ width:46px; height:46px; margin-bottom:10px; opacity:.6; }
-  .reveal-under img{ width:100%; height:100%; object-fit:cover; }
+  .reveal-under img, .reveal-under video{ width:100%; height:100%; object-fit:cover; }
+  .reveal-under video{ background:#000; }
   .reveal-canvas{ position:absolute; inset:0; width:100%; height:100%; cursor:pointer; }
   .reveal-caption{ margin-top:16px; color: var(--text-dim); font-size:.88rem; }
   .reveal-caption .script{ display:block; font-size:1.3rem; color: var(--accent-light); margin-top:4px; }
+  .bouquet-message-card{
+    width:min(620px, 100%); min-height:80px; margin:18px auto 0; padding:18px 22px;
+    display:flex; align-items:center; gap:14px; text-align:left;
+    color:var(--text-soft); background:linear-gradient(155deg, rgba(20,42,64,.92), rgba(15,31,48,.95));
+    border:1px solid rgba(102,179,255,.22); border-radius:16px; box-shadow:0 12px 30px rgba(0,8,20,.22);
+    cursor:pointer; transition:transform .2s ease, border-color .2s ease, background .2s ease;
+  }
+  .bouquet-message-card:hover{ transform:translateY(-2px); border-color:rgba(102,179,255,.55); background:rgba(20,42,64,.98); }
+  .bouquet-message-card:focus-visible{ outline:2px solid var(--accent-light); outline-offset:4px; }
+  .bouquet-message-number{ flex:0 0 36px; width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:var(--accent); color:#fff; font-size:.95rem; }
+  .bouquet-message-body{ min-width:0; }
+  .bouquet-message-prompt{ display:flex; align-items:center; gap:8px; color:var(--gray-light); font:1.15rem 'Caveat', cursive; }
+  .bouquet-message-prompt svg{ width:15px; height:15px; fill:none; stroke:var(--accent-light); stroke-width:1.8; }
+  .bouquet-message-text{ display:none; margin:6px 0 0; color:var(--text-soft); font-size:.9rem; line-height:1.55; white-space:pre-line; }
+  .bouquet-message-card.revealed{ cursor:default; }
+  .bouquet-message-card.revealed:hover{ transform:none; }
+  .bouquet-message-card.revealed .bouquet-message-prompt{ display:none; }
+  .bouquet-message-card.revealed .bouquet-message-text{ display:block; }
 
-  /* ---------- bouquet meanings (tap-to-reveal) ---------- */
-  .flower-meanings{ max-width:620px; margin:30px auto 0; text-align:left; }
-  .flower-meanings-heading{ text-align:center; font-family:'Playfair Display',serif; font-size:1.22rem; margin:0 0 5px; }
-  .flower-meanings-sub{ margin:0 0 16px; text-align:center; color:var(--text-dim); font-size:.84rem; }
-  .flower-meanings-list{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-  .flower-meaning{ min-height:94px; padding:17px 18px; }
-  .flower-meaning .reason-num{ width:30px; height:30px; font-size:1rem; }
-  .flower-meaning .flower-name{ display:block; margin-bottom:4px; color:var(--text-soft); font-size:.92rem; font-weight:600; }
-  .flower-meaning .reason-prompt{ font-size:.95rem; }
-  .flower-meaning p.reason-text{ font-size:.9rem; line-height:1.55; }
-  @media (max-width:600px){ .flower-meanings-list{ grid-template-columns:1fr; } }
+  /* ---------- media-page composition ---------- */
+  .reveal-block .kicker,
+  .reveal-block .heading{ text-align:center; }
+  .reveal-block .heading::after{ left:50%; transform:translateX(-50%); }
+  #page-us .wrap,
+  #page-bouquet .wrap{ max-width:780px; }
+  #page-us .heading,
+  #page-bouquet .heading{ margin-bottom:clamp(26px,4vw,38px); }
+  #page-bouquet .reveal-frame{
+    isolation:isolate;
+    border-color:rgba(102,179,255,.38);
+    box-shadow:0 30px 78px rgba(0,8,20,.54), 0 0 0 7px rgba(0,127,255,.045), inset 0 1px 0 rgba(255,255,255,.09);
+  }
+  #page-bouquet .reveal-frame::before{
+    content:''; position:absolute; inset:0; z-index:3; pointer-events:none;
+    border-radius:inherit; box-shadow:inset 0 0 0 1px rgba(255,255,255,.045), inset 0 -70px 80px rgba(0,8,20,.12);
+  }
+  #page-bouquet .reveal-caption{ max-width:360px; margin-inline:auto; line-height:1.5; }
+  .bouquet-message-card{ position:relative; overflow:hidden; }
+  .bouquet-message-card::after{
+    content:'✦'; position:absolute; right:18px; top:50%; transform:translateY(-50%);
+    color:var(--accent-light); font-size:1.1rem; opacity:.28; transition:opacity .22s ease, transform .22s ease;
+  }
+  .bouquet-message-card:hover::after{ opacity:.75; transform:translateY(-50%) scale(1.18); }
+  .bouquet-message-card.revealed{ border-color:rgba(102,179,255,.44); background:linear-gradient(140deg,rgba(0,127,255,.13),rgba(15,31,48,.96)); }
+  .bouquet-message-card.revealed::after{ opacity:.5; }
+  .photo-controls,.envelope-controls{ min-height:42px; }
+  @media (max-width:600px){
+    .reveal-frame{ width:min(390px, 90vw); }
+    .bouquet-message-card{ width:min(390px, 90vw); padding:16px 18px; }
+    .bouquet-message-card::after{ right:14px; }
+    .photo-controls,.envelope-controls{ flex-wrap:wrap; row-gap:8px; }
+    .photo-position,.envelope-position{ flex-basis:100%; text-align:center; order:3; }
+    .env-nav{ min-width:min(150px, calc(50vw - 26px)); }
+  }
 
   /* ---------- draggable stacked-photo carousel ---------- */
   .photo-carousel{
@@ -806,6 +779,11 @@
   .photo-placeholder strong{ color:var(--accent-light); font-family:'Caveat', cursive; font-size:1.55rem; font-weight:500; }
   .photo-placeholder span{ font-size:.78rem; }
   .photo-controls{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; }
+  .photo-dots{ display:flex; justify-content:center; gap:7px; margin:12px auto 0; }
+  .photo-dot{ width:7px; height:7px; padding:0; border:0; border-radius:50%; background:rgba(188,196,204,.32); cursor:pointer; transition:transform .22s ease,background .22s ease,box-shadow .22s ease; }
+  .photo-dot:hover{ background:rgba(102,179,255,.75); transform:scale(1.18); }
+  .photo-dot.active{ background:var(--accent-light); transform:scale(1.35); box-shadow:0 0 11px rgba(102,179,255,.75); }
+  .photo-dot:focus-visible{ outline:2px solid var(--accent-light); outline-offset:3px; }
   .photo-next{
     display:inline-flex; align-items:center; gap:7px; padding:10px 15px; border:1px solid var(--line); border-radius:999px;
     background:rgba(15,31,48,.86); color:var(--text-soft); cursor:pointer; font:inherit; font-size:.85rem;
@@ -953,6 +931,18 @@
     background:linear-gradient(90deg,rgba(6,13,22,.24),transparent 18% 82%,rgba(6,13,22,.24));
   }
   .page{ position:relative; z-index:1; }
+  .page:not(#page-hub)::after{
+    position:absolute; right:clamp(18px,6vw,84px); bottom:clamp(22px,7vh,78px); z-index:-1;
+    color:var(--accent-light); font:italic clamp(5rem,15vw,11rem) 'Playfair Display',serif; opacity:.035;
+    pointer-events:none; user-select:none;
+  }
+  #page-story::after{ content:'✦'; }
+  #page-music::after{ content:'♫'; }
+  #page-letter::after{ content:'✉'; }
+  #page-us::after{ content:'⌁'; }
+  #page-bouquet::after{ content:'✿'; }
+  #page-reasons::after{ content:'♡'; }
+  #page-daily::after,#page-daily-intro::after{ content:'✧'; }
   #page-hub .hub-inner{ padding-top:clamp(64px,9vw,96px); padding-bottom:clamp(58px,8vw,84px); }
   #page-hub .tagline{ max-width:530px; }
   .hub-progress{ position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 12px 28px rgba(0,8,20,.18); }
@@ -1017,8 +1007,6 @@
   #whyText,
   #whoText,
   #reasonsList .reason-text,
-  #flowerMeaningsList .flower-name,
-  #flowerMeaningsList .reason-text,
   .envelope .letter-paper{
     filter: blur(6px);
     user-select: none;
@@ -1077,8 +1065,6 @@
   body.reveal-everything #whyText,
   body.reveal-everything #whoText,
   body.reveal-everything #reasonsList .reason-text,
-  body.reveal-everything #flowerMeaningsList .flower-name,
-  body.reveal-everything #flowerMeaningsList .reason-text,
   body.reveal-everything .envelope .letter-paper,
   body.reveal-everything canvas.private-text-canvas-base{
     filter: none !important;
@@ -1365,6 +1351,7 @@
       <button class="photo-next" id="nextPhotoBtn" type="button">Next photo <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <span class="photo-position" id="photoPosition" aria-live="polite"></span>
     </div>
+    <div class="photo-dots" id="photoDots" aria-label="Choose a photo"></div>
     <div class="reveal-caption">it keeps turning on its own<span class="script">drag it whenever you want to look closer</span></div>
   </div>
 </section>
@@ -1379,11 +1366,13 @@
       <canvas class="reveal-canvas" id="bouquetCanvas"></canvas>
     </div>
     <div class="reveal-caption">tap or swipe to unwrap it<span class="script">picked just for you</span></div>
-    <section class="flower-meanings" id="flowerMeanings" aria-labelledby="flowerMeaningsTitle">
-      <h3 class="flower-meanings-heading" id="flowerMeaningsTitle">a little language of flowers</h3>
-      <p class="flower-meanings-sub">tap each bloom to see why it belongs in your bouquet</p>
-      <div class="flower-meanings-list" id="flowerMeaningsList"></div>
-    </section>
+    <button class="bouquet-message-card" id="bouquetMessage" type="button" aria-expanded="false" hidden>
+      <span class="bouquet-message-number">1</span>
+      <span class="bouquet-message-body">
+        <span class="bouquet-message-prompt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.6-9.5-8.8C.7 8.6 2 5 5.4 5 7.6 5 9.5 6.3 12 9c2.5-2.7 4.4-4 6.6-4C22 5 23.3 8.6 21.5 12.2 19 16.4 12 21 12 21z"/></svg>tap to reveal</span>
+        <span class="bouquet-message-text"></span>
+      </span>
+    </button>
   </div>
 </section>
 
@@ -1540,6 +1529,7 @@ const CONFIG = {
   dailyStartDate: "2026-07-30",
   dailyEndDate: "2026-11-20",
   dailyMessages: [],  // populated from revealed.json (day-gated + encrypted) at runtime
+  revealEverything: false, // populated from content.json at runtime
 
   // dailyReveals: which phrase(s) render sharp within a specific day's
   // note. Populated from content.json (encrypted) at runtime — see
@@ -1601,7 +1591,7 @@ const CONFIG = {
     { title: "Kiss It Better", artist: " Rihanna", duration: "—", src: "top100/Kiss It Better.mp3" },
     { title: "Love Me Harder", artist: " Ariana Grande & The Weeknd", duration: "—", src: "top100/Love Me Harder.mp3" },
     { title: "Love Me Like You Do", artist: " Ellie Goulding", duration: "—", src: "top100/Love Me Like You Do.mp3" },
-    { title: "Do I Wanna Know? - Live At the BBC", artist: " Hozier", duration: "—", src: "top100/Do I Wanna Know? - Live At the BBC.mp3" },
+    { title: "Do I Wanna Know? - Live At the BBC", artist: " Hozier", duration: "—", src: "top100/Do I Wanna Know_ - Live At the BBC.mp3" },
     { title: "Reflections", artist: " The Neighbourhood", duration: "—", src: "top100/Reflections.mp3" },
     { title: "Hold Your Breath", artist: " Chase Atlantic", duration: "—", src: "top100/Hold Your Breath.mp3" },
     { title: "coffee", artist: " Miguel", duration: "—", src: "top100/coffee.mp3" },
@@ -1617,7 +1607,7 @@ const CONFIG = {
     { title: "Latch", artist: " Disclosure feat. Sam Smith", duration: "—", src: "top100/Latch.mp3" },
     { title: "Roommates", artist: " Malcolm Todd", duration: "—", src: "top100/Roommates.mp3" },
     { title: "A Couple Minutes", artist: " Olivia Dean", duration: "—", src: "top100/A Couple Minutes.mp3" },
-    { title: "How Many Drinks?", artist: " Miguel", duration: "—", src: "top100/How Many Drinks?.mp3" },
+    { title: "How Many Drinks?", artist: " Miguel", duration: "—", src: "top100/How Many Drinks_.mp3" },
     { title: "It Won't Stop (feat. Chris Brown) - EP Version", artist: " Sevyn Streeter feat. Chris Brown", duration: "—", src: "top100/It Won't Stop (feat. Chris Brown) - EP Version.mp3" },
     { title: "Say It", artist: " Tory Lanez", duration: "—", src: "top100/Say It.mp3" },
     { title: "Residuals", artist: " Chris Brown", duration: "—", src: "top100/Residuals.mp3" },
@@ -1636,11 +1626,11 @@ const CONFIG = {
     { title: "Ride", artist: " SoMo", duration: "—", src: "top100/Ride.mp3" },
     { title: "Beautiful", artist: " Bazzi", duration: "—", src: "top100/Beautiful.mp3" },
     { title: "Heaven", artist: " Bryan Adams", duration: "—", src: "top100/Heaven.mp3" },
-    { title: "Evergreen (You Didn\'t Deserve Me At All)", artist: " Omar Apollo", duration: "—", src: "top100/Evergreen (You Didn\'t Deserve Me At All).mp3" },
+    { title: "Evergreen (You Didn't Deserve Me At All)", artist: " Omar Apollo", duration: "—", src: "top100/Evergreen (You Didn#U2019t Deserve Me At All).mp3" },
     { title: "Can't Help Falling In Love", artist: " Elvis Presley", duration: "—", src: "top100/Can't Help Falling In Love.mp3" },
     { title: "Rearrange My World", artist: " Daniel Caesar & Rex Orange County", duration: "—", src: "top100/Rearrange My World.mp3" },
     { title: "Merry Christmas, Please Don't Call", artist: " Bleachers", duration: "—", src: "top100/Merry Christmas, Please Don't Call.mp3" },
-    { title: "I Don't Want to Miss a Thing - From \"Armageddon\" Soundtrack", artist: " Aerosmith", duration: "—", src: "top100/I Don't Want to Miss a Thing - From \"Armageddon\" Soundtrack.mp3" },
+    { title: "I Don't Want to Miss a Thing - From \"Armageddon\" Soundtrack", artist: " Aerosmith", duration: "—", src: "top100/I Don't Want to Miss a Thing - From _Armageddon_ Soundtrack.mp3" },
     { title: "Lips Of An Angel", artist: " Hinder", duration: "—", src: "top100/Lips Of An Angel.mp3" },
     { title: "Backburner", artist: " NIKI", duration: "—", src: "top100/Backburner.mp3" },
     { title: "Get You (feat. Kali Uchis)", artist: " Daniel Caesar feat. Kali Uchis", duration: "—", src: "top100/Get You (feat. Kali Uchis).mp3" },
@@ -1656,7 +1646,7 @@ const CONFIG = {
     { title: "PILLOWTALK", artist: " ZAYN", duration: "—", src: "top100/PILLOWTALK.mp3" },
     { title: "Perfect", artist: " One Direction", duration: "—", src: "top100/Perfect.mp3" },
     { title: "The Alchemy", artist: " Taylor Swift", duration: "—", src: "top100/The Alchemy.mp3" },
-    { title: "Guilty as Sin?", artist: " Taylor Swift", duration: "—", src: "top100/Guilty as Sin?.mp3" },
+    { title: "Guilty as Sin?", artist: " Taylor Swift", duration: "—", src: "top100/Guilty as Sin_.mp3" },
     { title: "Traphouse", artist: " Tory Lanez feat. Nyce", duration: "—", src: "top100/Traphouse.mp3" },
     { title: "Pink Matter", artist: " Frank Ocean feat. André 3000", duration: "—", src: "top100/Pink Matter.mp3" },
     { title: "Pyramids", artist: " Frank Ocean", duration: "—", src: "top100/Pyramids.mp3" },
@@ -1708,11 +1698,22 @@ const CONFIG = {
     "photos/photo-3.jpg", // Photo 3
     "photos/photo-4.jpg"  // Photo 4
   ],
+  photoAlts: [
+    "Us, photo 1",
+    "Us, photo 2",
+    "Us, photo 3",
+    "Us, photo 4"
+  ],
 
-  bouquetUrl: "bouquet/Bouquet-1.jpg",    // leave empty to use the illustrated bouquet
-  // BOUQUET MEANINGS — tap-to-reveal notes shown below the bouquet.
-  // Change these names and meanings to match the flowers you chose.
-  bouquetMeanings: [],  // populated from content.json (encrypted) at runtime
+  // BOUQUET MEDIA — set type to "image" or "video". Leave src empty to
+  // use the illustrated fallback. Videos show standard playback controls.
+  bouquetMedia: {
+    src: "bouquet/Bouquet-1.jpg",
+    type: "image",
+    alt: "a bouquet",
+    poster: "", // optional image shown before a video plays
+    message: "for you, with love."
+  },
 
   togetherSince: "2026-07-29",
   yourName: "Kled"
@@ -1721,7 +1722,7 @@ const CONFIG = {
 
 /* ============================================================
    TEXT LOCK — the fields above (reasons, dailyMessages, whyText,
-   whoText, dailyReveals, bouquetMeanings, letters,
+   whoText, dailyReveals, letters,
    song notes) are stored as AES-256-GCM ciphertext, not plain text.
    Nothing readable sits in this file or in CONFIG until the code
    below decrypts it in the browser. This keeps the words out of
@@ -1775,7 +1776,6 @@ async function hydrateConfig(){
   // (same date, different text/occurrence), or one entry marked revealAll
   // to unblur the entire note instead of a specific phrase.
   tasks.push(Promise.all((CONFIG.dailyReveals || []).map(async r => ({ date: r.date, text: await unlock(r.text), occurrence: r.occurrence, revealAll: r.revealAll }))).then(v => CONFIG.dailyReveals = v));
-  tasks.push(Promise.all((CONFIG.bouquetMeanings || []).map(async m => ({ flower: await unlock(m.flower), meaning: await unlock(m.meaning) }))).then(v => CONFIG.bouquetMeanings = v));
   // letterWords are deliberately NOT decrypted/protected — they're the
   // one-word hints on the envelope seals ("birthday", "again", "sorry"),
   // meant to be readable at a glance. Only the letter bodies are private.
@@ -2193,7 +2193,6 @@ window.__siteContentReady = (async function(){
       if (content.letters) CONFIG.letters = content.letters;
       // letterWords stay plain — they're the seal hints, not private text.
       if (content.letterWords) CONFIG.letterWords = content.letterWords;
-      if (content.bouquetMeanings) CONFIG.bouquetMeanings = content.bouquetMeanings;
       if (content.songNotes) {
         CONFIG.songs.forEach((s, i) => { if (content.songNotes[i] !== undefined) s.note = content.songNotes[i]; });
       }
@@ -2338,7 +2337,6 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
 (function renderReasons(){
   const list = document.getElementById('reasonsList');
   const reasons = (CONFIG.reasons || []).filter(r => r && r.trim());
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   if (!reasons.length) {
     document.getElementById('reasonsTile').hidden = true;
@@ -2367,32 +2365,6 @@ PrivateText.protect(document.getElementById('whoText'), CONFIG.whoText);
       // the hub only credits "reasons" once one has actually been read
       if (window.markHubVisited) window.markHubVisited('reasons');
     });
-  });
-})();
-
-/* ---------- bouquet meanings (same tap-to-reveal language as reasons) ---------- */
-(function renderFlowerMeanings(){
-  const list = document.getElementById('flowerMeaningsList');
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const meanings = (CONFIG.bouquetMeanings || []).filter(item => item && item.flower && item.meaning);
-  if (!meanings.length) {
-    document.getElementById('flowerMeanings').hidden = true;
-    return;
-  }
-  meanings.forEach((item, index) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'reason-item flower-meaning';
-    btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = `<span class="reason-num">${index + 1}</span><span class="reason-body"><span class="flower-name"></span><span class="reason-prompt">tap to reveal its meaning</span><p class="reason-text"></p></span>`;
-    PrivateText.protect(btn.querySelector('.flower-name'), item.flower);
-    PrivateText.protect(btn.querySelector('.reason-text'), item.meaning);
-    btn.addEventListener('click', () => {
-      if (btn.classList.contains('revealed')) return;
-      btn.classList.add('revealed');
-      btn.setAttribute('aria-expanded', 'true');
-    });
-    list.appendChild(btn);
   });
 })();
 
@@ -2440,10 +2412,24 @@ document.getElementById('signature').textContent = `coded late at night, with lo
   const orbit = document.getElementById('photoOrbit');
   const nextButton = document.getElementById('nextPhotoBtn');
   const position = document.getElementById('photoPosition');
+  const dots = document.getElementById('photoDots');
   const photos = Array.from({ length:4 }, (_, index) => CONFIG.photoUrls[index] || '');
+  const photoAlts = Array.isArray(CONFIG.photoAlts) ? CONFIG.photoAlts : [];
   const cards = [];
+  const dotButtons = [];
   let activePhoto = 0;
   let autoRotate;
+
+  function addPhotoPlaceholder(card, index){
+    const placeholder = document.createElement('div');
+    placeholder.className = 'photo-placeholder';
+    const label = document.createElement('strong');
+    label.textContent = `photo ${index + 1}`;
+    const prompt = document.createElement('span');
+    prompt.textContent = 'add a memory here';
+    placeholder.append(label, prompt);
+    card.replaceChildren(placeholder);
+  }
 
   photos.forEach((source, index) => {
     const card = document.createElement('figure');
@@ -2452,20 +2438,22 @@ document.getElementById('signature').textContent = `coded late at night, with lo
     if (source) {
       const image = document.createElement('img');
       image.src = source;
-      image.alt = `Us, photo ${index + 1}`;
+      image.alt = photoAlts[index] || `Us, photo ${index + 1}`;
+      image.addEventListener('error', () => addPhotoPlaceholder(card, index), { once:true });
       card.appendChild(image);
     } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'photo-placeholder';
-      const label = document.createElement('strong');
-      label.textContent = `photo ${index + 1}`;
-      const prompt = document.createElement('span');
-      prompt.textContent = 'add a memory here';
-      placeholder.append(label, prompt);
-      card.appendChild(placeholder);
+      addPhotoPlaceholder(card, index);
     }
     orbit.appendChild(card);
     cards.push(card);
+
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'photo-dot';
+    dot.setAttribute('aria-label', `Show photo ${index + 1}`);
+    dot.addEventListener('click', () => { activePhoto = index; layoutCards(); startAutoRotate(); });
+    dots.appendChild(dot);
+    dotButtons.push(dot);
   });
 
   function layoutCards(){
@@ -2475,6 +2463,11 @@ document.getElementById('signature').textContent = `coded late at night, with lo
       card.classList.add(positions[(index - activePhoto + cards.length) % cards.length]);
     });
     position.textContent = `Photo ${activePhoto + 1} of ${cards.length}`;
+    dotButtons.forEach((dot, index) => {
+      const current = index === activePhoto;
+      dot.classList.toggle('active', current);
+      dot.setAttribute('aria-current', current ? 'true' : 'false');
+    });
   }
   function movePhotos(direction){
     activePhoto = (activePhoto + direction + cards.length) % cards.length;
@@ -2791,7 +2784,13 @@ document.getElementById('signature').textContent = `coded late at night, with lo
   const prevButton = document.getElementById('prevEnvBtn');
   const position = document.getElementById('envelopePosition');
   const hint = document.getElementById('envHint');
-  const letters = (CONFIG.letters && CONFIG.letters.length) ? CONFIG.letters : [CONFIG.letterBody || ''];
+  const letters = (CONFIG.letters || []).filter(text => typeof text === 'string' && text.trim());
+  if (!letters.length) {
+    carousel.hidden = true;
+    document.getElementById('envelopeControls').hidden = true;
+    hint.textContent = 'No letters have been added yet.';
+    return;
+  }
   const cards = [];
   let activeEnvelope = 0;
   let autoRotate;
@@ -2947,9 +2946,48 @@ function makeBouquetSVG(){
       </g>`).join('')}
   </svg>`;
 }
-document.getElementById('bouquetUnder').innerHTML = CONFIG.bouquetUrl
-  ? `<img src="${CONFIG.bouquetUrl}" alt="bouquet">`
-  : makeBouquetSVG();
+function renderBouquetMedia(){
+  const under = document.getElementById('bouquetUnder');
+  const messageCard = document.getElementById('bouquetMessage');
+  const messageText = messageCard.querySelector('.bouquet-message-text');
+  const media = CONFIG.bouquetMedia || {};
+  const src = typeof media.src === 'string' ? media.src.trim() : '';
+  const isVideo = media.type === 'video' || (!media.type && /\.(mp4|webm|ogv|ogg|mov)(?:[?#]|$)/i.test(src));
+
+  const message = typeof media.message === 'string' ? media.message.trim() : '';
+  messageText.textContent = message;
+  messageCard.hidden = !message;
+  messageCard.classList.remove('revealed');
+  messageCard.setAttribute('aria-expanded', 'false');
+  if (!src) {
+    under.innerHTML = makeBouquetSVG();
+    return;
+  }
+
+  const element = document.createElement(isVideo ? 'video' : 'img');
+  element.src = src;
+  const description = typeof media.alt === 'string' ? media.alt : 'a bouquet';
+  if (isVideo) {
+    element.setAttribute('aria-label', description);
+    element.controls = true;
+    element.playsInline = true;
+    element.preload = 'metadata';
+    if (typeof media.poster === 'string' && media.poster.trim()) element.poster = media.poster.trim();
+  } else {
+    element.alt = description;
+  }
+  element.addEventListener('error', () => {
+    if (under.contains(element)) under.innerHTML = makeBouquetSVG();
+  }, { once:true });
+  under.replaceChildren(element);
+}
+renderBouquetMedia();
+document.getElementById('bouquetMessage').addEventListener('click', event => {
+  const card = event.currentTarget;
+  if (card.classList.contains('revealed')) return;
+  card.classList.add('revealed');
+  card.setAttribute('aria-expanded', 'true');
+});
 
 function initScratch(frameId, canvasId){
   const frame = document.getElementById(frameId);
