@@ -641,6 +641,18 @@
   .seal .seal-word{ font:600 .72rem 'Outfit', sans-serif; letter-spacing:.03em; text-transform:uppercase; color:#fff; white-space:nowrap; }
   .envelope.open .seal{ opacity:0; transform:translate(-50%,-50%) scale(.4); pointer-events:none; }
   .env-back{ cursor:pointer; }
+  /* code lock on an envelope (see CONFIG.letterCodes) */
+  .env-lock{
+    position:absolute; inset:0; z-index:6; border-radius:10px;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    background:rgba(10,22,36,.88); backdrop-filter:blur(3px); padding:16px; text-align:center;
+  }
+  .envelope.asking .env-lock{ display:flex; }
+  .env-lock .env-lock-title{ font:600 .78rem 'Outfit', sans-serif; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
+  .env-lock .vault-error{ min-height:1.1em; font-size:.78rem; color:#ff9db0; }
+  .env-lock.shake .vault-form{ animation:lockShake .42s ease; }
+  .env-lock-cancel{ background:none; border:0; color:var(--text-dim); font-size:.74rem; cursor:pointer; text-decoration:underline; }
+  .seal.is-locked::after{ content:"\1F512"; position:absolute; right:-6px; bottom:-6px; font-size:.8rem; }
   .letter-paper{
     position:absolute; left:6%; right:6%; bottom:8px; top:26px;
     background: #f4f7fa; color:#1b3550; border-radius:6px;
@@ -751,6 +763,47 @@
     .photo-controls,.envelope-controls{ flex-wrap:wrap; row-gap:8px; }
     .photo-position,.envelope-position{ flex-basis:100%; text-align:center; order:3; }
     .env-nav{ min-width:min(150px, calc(50vw - 26px)); }
+  }
+
+  /* ---------- bouquet page: two panels (bouquet + code-locked media) ---------- */
+  #page-bouquet .wrap{ max-width:940px; }
+  .bouquet-duo{ display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:start; }
+  .bouquet-panel{ min-width:0; }
+  .bouquet-duo .reveal-frame{ width:100%; }
+  .bouquet-duo .bouquet-message-card{ width:100%; }
+  .vault-frame{ touch-action:auto; }
+  .vault-lock{
+    position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; padding:24px; text-align:center;
+    background:linear-gradient(160deg,#1a3550,#142a40 55%,#0f1f30);
+    transition:opacity .5s ease;
+  }
+  .vault-lock.open{ opacity:0; pointer-events:none; }
+  .vault-lock.gone{ display:none; }
+  .vault-icon{ width:52px; height:52px; display:grid; place-items:center; border-radius:50%; color:#fff;
+    background:linear-gradient(135deg,var(--accent-deep),var(--accent)); box-shadow:0 0 0 7px rgba(0,127,255,.12); }
+  .vault-icon svg{ width:24px; height:24px; }
+  .vault-title{ font-size:1.9rem; color:var(--accent-light); }
+  .vault-hint{ margin:0; color:var(--text-dim); font-size:.84rem; line-height:1.5; max-width:240px; }
+  .vault-hint:empty{ display:none; }
+  .vault-form{ display:flex; gap:8px; width:100%; max-width:260px; margin-top:6px; }
+  .vault-form input{
+    flex:1; min-width:0; padding:11px 13px; border:1px solid var(--line); border-radius:10px;
+    background:rgba(6,13,22,.55); color:var(--text-soft); font:inherit; font-size:.9rem; text-align:center;
+  }
+  .vault-form input:focus-visible{ outline:2px solid var(--accent-light); outline-offset:2px; }
+  .vault-form button{
+    padding:11px 15px; border:1px solid rgba(102,179,255,.5); border-radius:10px; cursor:pointer;
+    background:rgba(0,127,255,.22); color:var(--text-soft); font:inherit; font-size:.88rem;
+  }
+  .vault-form button:hover{ background:rgba(0,127,255,.38); }
+  .vault-form button:disabled{ opacity:.5; cursor:wait; }
+  .vault-error{ min-height:1.2em; margin:2px 0 0; color:#e7778d; font-size:.8rem; }
+  .vault-lock.shake .vault-form{ animation:lockShake .42s ease; }
+  @media (max-width:700px){
+    .bouquet-duo{ grid-template-columns:1fr; gap:38px; }
+    .bouquet-duo .reveal-frame{ width:min(390px,90vw); }
+    .bouquet-duo .bouquet-message-card{ width:min(390px,90vw); }
   }
 
   /* ---------- draggable stacked-photo carousel ---------- */
@@ -1361,6 +1414,8 @@
   <div class="wrap reveal-block">
     <span class="kicker">a little something</span>
     <h2 class="heading">your bouquet</h2>
+    <div class="bouquet-duo">
+    <div class="bouquet-panel">
     <div class="reveal-frame" id="bouquetFrame">
       <div class="reveal-under" id="bouquetUnder"></div>
       <canvas class="reveal-canvas" id="bouquetCanvas"></canvas>
@@ -1373,6 +1428,26 @@
         <span class="bouquet-message-text"></span>
       </span>
     </button>
+    </div>
+
+    <!-- locked photo/video: only opens with the right code -->
+    <div class="bouquet-panel">
+      <div class="reveal-frame vault-frame" id="vaultFrame">
+        <div class="reveal-under" id="vaultMedia"></div>
+        <div class="vault-lock" id="vaultLock">
+          <span class="vault-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/></svg></span>
+          <span class="script vault-title">Need code</span>
+          <p class="vault-hint" id="vaultHint"></p>
+          <form class="vault-form" id="vaultForm" autocomplete="off">
+            <input id="vaultCode" type="text" aria-label="Enter the code" placeholder="enter the code" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <button type="submit">open</button>
+          </form>
+          <p class="vault-error" id="vaultError" role="alert"></p>
+        </div>
+      </div>
+      <div class="reveal-caption" id="vaultCaption">locked<span class="script">only the right code opens this one</span></div>
+    </div>
+    </div>
   </div>
 </section>
 
@@ -1692,6 +1767,23 @@ const CONFIG = {
   ],
 
 
+  // LETTER CODES — same ORDER as "letters" / "letterWords". Put a code in quotes
+  // to lock that envelope (she must type it before it opens). Leave "" for an
+  // envelope with no lock. Capital letters and extra spaces don't matter.
+  letterCodes: [
+    "",   // envelope 1
+    "",   // envelope 2
+    "",   // envelope 3
+    ""    // envelope 4
+  ],
+  // Optional clues shown in the code box, same order. "" = no clue.
+  letterCodeHints: [
+    "",
+    "",
+    "",
+    ""
+  ],
+
   photoUrls: [
     "photos/photo-1.jpg", // Photo 1 — e.g. "photos/photo-1.jpg"
     "photos/photo-2.jpg", // Photo 2
@@ -1713,6 +1805,24 @@ const CONFIG = {
     alt: "a bouquet",
     poster: "", // optional image shown before a video plays
     message: "for you, with love."
+  },
+
+  // LOCKED MEDIA — the right-hand panel on the bouquet page. The file is
+  // AES-GCM encrypted with a key derived from the code (see
+  // encrypt-media.mjs), so the photo/video genuinely can't be opened
+  // without the code, even by someone who finds the file URL.
+  //   src:     path to the encrypted file you made with encrypt-media.mjs
+  //   type:    "image" or "video"
+  //   mime:    the ORIGINAL file's type, e.g. "image/jpeg", "video/mp4"
+  //   hint:    optional line shown above the code box (don't put the code here)
+  //   caption: optional line shown under the panel once it's open
+  lockedMedia: {
+    src: "bouquet/photo.jpg",    // your normal photo/video file
+    code: "changeme",            // the code she types to unlock it
+    type: "image",
+    mime: "image/jpeg",
+    hint: "",
+    caption: "for you, with love."
   },
 
   togetherSince: "2026-07-29",
@@ -2802,6 +2912,9 @@ document.getElementById('signature').textContent = `coded late at night, with lo
     const card = document.createElement('div');
     card.className = 'envelope-card';
     const word = (letterWords[letterIndex] || '').trim();
+    const lockCode = String((CONFIG.letterCodes || [])[letterIndex] || '').trim().toLowerCase();
+    let unlocked = !lockCode;
+    const lockHint = String((CONFIG.letterCodeHints || [])[letterIndex] || '').trim();
     const sealInner = word
       ? `<span class="seal-word">${word}</span>`
       : `<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-8.8C.7 8.6 2 5 5.4 5 7.6 5 9.5 6.3 12 9c2.5-2.7 4.4-4 6.6-4C22 5 23.3 8.6 21.5 12.2 19 16.4 12 21 12 21z"/></svg>`;
@@ -2810,8 +2923,17 @@ document.getElementById('signature').textContent = `coded late at night, with lo
         <div class="letter-paper" tabindex="0" aria-label="Letter content. Scroll to read more."><button class="letter-close" type="button" aria-label="Close letter">×</button><div class="letter-text"></div></div>
         <div class="env-flap"></div>
         <div class="env-back"></div>
-        <div class="seal${word ? ' has-word' : ''}">
+        <div class="seal${word ? ' has-word' : ''}${lockCode ? ' is-locked' : ''}">
           ${sealInner}
+        </div>
+        <div class="env-lock" hidden>
+          <div class="env-lock-title">need code</div>
+          <form class="vault-form" autocomplete="off">
+            <input type="text" placeholder="enter code" aria-label="Envelope code" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <button type="submit">open</button>
+          </form>
+          <div class="vault-error" aria-live="polite"></div>
+          <button type="button" class="env-lock-cancel">cancel</button>
         </div>
       </div>`;
 
@@ -2844,8 +2966,36 @@ document.getElementById('signature').textContent = `coded late at night, with lo
       hint.textContent = open ? 'use the × button to close the letter' : 'tap the envelope to open it';
       if (open) window.clearInterval(autoRotate); else startAutoRotate();
     }
+    const lockBox = card.querySelector('.env-lock');
+    const lockForm = lockBox.querySelector('form');
+    const lockInput = lockBox.querySelector('input');
+    const lockError = lockBox.querySelector('.vault-error');
+    lockBox.addEventListener('pointerdown', e => e.stopPropagation()); // typing shouldn't start a carousel drag
+    function showAsk(show){
+      lockBox.hidden = !show;
+      env.classList.toggle('asking', show);
+      lockError.textContent = show ? lockHint : '';
+      if (show) { window.clearInterval(autoRotate); lockInput.value = ''; lockInput.focus({ preventScroll: true }); }
+      else startAutoRotate();
+    }
+    lockForm.addEventListener('submit', e => {
+      e.preventDefault();
+      if (lockInput.value.trim().toLowerCase() === lockCode) {
+        unlocked = true;
+        seal.classList.remove('is-locked');
+        showAsk(false);
+        setOpen(true);
+      } else {
+        lockError.textContent = 'that’s not it — try again.';
+        lockBox.classList.remove('shake'); void lockBox.offsetWidth; lockBox.classList.add('shake');
+        lockInput.select();
+      }
+    });
+    lockBox.querySelector('.env-lock-cancel').addEventListener('click', () => showAsk(false));
+
     function toggle(){
       if (!card.classList.contains('is-front')) return;
+      if (!unlocked && !env.classList.contains('open')) { showAsk(true); return; }
       setOpen(!env.classList.contains('open'));
     }
     [flap, seal, back].forEach(el => el.addEventListener('click', toggle));
@@ -2862,6 +3012,7 @@ document.getElementById('signature').textContent = `coded late at night, with lo
       card.classList.remove(...positions);
       card.classList.add(positions[(index - activeEnvelope + cards.length) % cards.length]);
       if (wasFront && !card.classList.contains('is-front') && env.classList.contains('open')) setOpen(false);
+      if (wasFront && !card.classList.contains('is-front')) { const lb = card.querySelector('.env-lock'); if (lb) { lb.hidden = true; env.classList.remove('asking'); } }
     });
     if (cards.length > 1) position.textContent = `Envelope ${activeEnvelope + 1} of ${cards.length}`;
   }
@@ -3079,6 +3230,78 @@ function initScratch(frameId, canvasId){
 }
 
 initScratch('bouquetFrame', 'bouquetCanvas');
+
+/* ---------- code-locked photo/video (right-hand panel) ---------- */
+(function codeVault(){
+  const cfg = CONFIG.lockedMedia || {};
+  const frame = document.getElementById('vaultFrame');
+  const panel = frame.closest('.bouquet-panel');
+  if (!cfg.src) { panel.hidden = true; return; }
+
+  const lock = document.getElementById('vaultLock');
+  const form = document.getElementById('vaultForm');
+  const input = document.getElementById('vaultCode');
+  const error = document.getElementById('vaultError');
+  const media = document.getElementById('vaultMedia');
+  const caption = document.getElementById('vaultCaption');
+  const submit = form.querySelector('button');
+  document.getElementById('vaultHint').textContent = cfg.hint || '';
+
+  // Code is trimmed + lowercased on both sides (here and in encrypt-media.mjs)
+  // so capitalization or a stray space can't lock her out.
+  async function decrypt(code){
+    let res;
+    try { res = await fetch(cfg.src, { cache: 'no-store' }); } catch (e) { throw new Error('missing'); }
+    if (!res.ok) throw new Error('missing');
+    const packed = new Uint8Array(await res.arrayBuffer());
+    const salt = packed.slice(0, 16), iv = packed.slice(16, 28), data = packed.slice(28);
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(code.trim().toLowerCase()), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    try { return await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data); }
+    catch (e) { throw new Error('wrong'); }
+  }
+
+  // Simple mode: when cfg.code is set, the file is a normal photo/video and the
+  // code just gates it on the page.
+  async function plainCheck(code){
+    if (code.trim().toLowerCase() !== String(cfg.code).trim().toLowerCase()) throw new Error('wrong');
+    return cfg.src;
+  }
+
+  function showMedia(source){
+    const url = typeof source === 'string' ? source
+      : URL.createObjectURL(new Blob([source], { type: cfg.mime || (cfg.type === 'video' ? 'video/mp4' : 'image/jpeg') }));
+    const el = document.createElement(cfg.type === 'video' ? 'video' : 'img');
+    el.src = url;
+    if (cfg.type === 'video') { el.controls = true; el.playsInline = true; el.preload = 'metadata'; }
+    else { el.alt = 'a locked memory'; }
+    media.replaceChildren(el);
+    lock.classList.add('open');
+    setTimeout(() => lock.classList.add('gone'), 520);
+    caption.innerHTML = '';
+    caption.append('unlocked');
+    const script = document.createElement('span');
+    script.className = 'script';
+    script.textContent = cfg.caption || '';
+    caption.appendChild(script);
+  }
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!input.value.trim()) return;
+    error.textContent = '';
+    submit.disabled = true;
+    try {
+      showMedia(cfg.code ? await plainCheck(input.value) : await decrypt(input.value));
+    } catch (err) {
+      error.textContent = err.message === 'missing' ? 'this one isn\u2019t ready yet \u2014 check back soon.' : 'that\u2019s not it \u2014 try again.';
+      lock.classList.remove('shake'); void lock.offsetWidth; lock.classList.add('shake');
+      if (err.message === 'wrong') { input.select(); }
+    } finally {
+      submit.disabled = false;
+    }
+  });
+})();
 
 /* ---------- museum overlay: opens the museum in-page, never a new tab ---------- */
 (function museumOverlay(){
